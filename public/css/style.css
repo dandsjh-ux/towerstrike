@@ -354,3 +354,76 @@ body[data-role="striker"] .chat-box { bottom: 130px; }
 .ed-opt input[type=radio] { accent-color: var(--good); width: 16px; height: 16px; }
 .ed-opt input[data-f=opt] { flex: 1; min-width: 0; padding: 5px 8px; }
 @media (max-width: 640px) { .ed-opts { grid-template-columns: 1fr; padding-left: 0; } }
+
+/* ---------------------------------------------------------------- touch devices */
+body.touch, body.touch canvas#gl { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+body.touch .screen, body.touch .modal, body.touch .shop, body.touch .host-panel, body.touch .palette, body.touch .question-card { touch-action: pan-y; }
+body.touch .hud-hint, body.touch .click-to-play { display: none !important; }
+body.touch .btn { min-height: 34px; }
+.touch-ui { position: absolute; inset: 0; pointer-events: none; }
+.touch-ui > * { pointer-events: auto; }
+.t-look { position: absolute; right: 0; top: 0; bottom: 0; width: 58%; }
+.t-move { position: absolute; left: 0; bottom: 0; width: 42%; height: 72%; }
+.t-move-hint { position: absolute; left: 50px; bottom: 120px; width: 96px; height: 96px; border-radius: 50%; border: 2px dashed rgba(255, 255, 255, 0.25); display: flex; align-items: center; justify-content: center; color: rgba(255, 255, 255, 0.35); font-size: 0.8em; pointer-events: none; }
+.t-stick-base { position: fixed; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; background: rgba(0, 0, 0, 0.25); border: 2px solid rgba(255, 255, 255, 0.35); pointer-events: none; }
+.t-stick { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; border-radius: 50%; background: rgba(255, 255, 255, 0.55); transform: translate(-50%, -50%); }
+.t-btn { position: absolute; width: 62px; height: 62px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.35); background: rgba(10, 16, 12, 0.45); color: #fff; font-size: 24px; display: flex; align-items: center; justify-content: center; touch-action: none; -webkit-tap-highlight-color: transparent; backdrop-filter: blur(4px); }
+.t-btn.small { width: 46px; height: 46px; font-size: 19px; }
+.t-btn.down { transform: scale(0.92); background: rgba(255, 138, 61, 0.55); }
+.t-btn.on { border-color: var(--gold); background: rgba(255, 211, 77, 0.35); }
+.t-fire { right: max(22px, env(safe-area-inset-right)); bottom: 96px; width: 92px; height: 92px; font-size: 34px; background: rgba(255, 90, 60, 0.4); }
+.t-aim { right: 128px; bottom: 150px; }
+.t-jump { right: 34px; bottom: 202px; }
+.t-reload { right: 126px; bottom: 76px; font-size: 26px; }
+.t-sprint { left: max(26px, env(safe-area-inset-left)); bottom: 238px; }
+.t-swap { right: 18px; top: 168px; }
+.t-shop { right: 70px; top: 168px; }
+.t-full { right: 122px; top: 168px; }
+.t-rotate { display: none; }
+@media (orientation: portrait) {
+  body.touch .t-rotate { display: flex; position: absolute; inset: 0; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.75); font-family: var(--display); font-size: 22px; text-align: center; padding: 20px; z-index: 40; }
+}
+body.touch #str-hud .minimap { width: 128px; height: 128px; top: 34px; right: 10px; }
+body.touch #str-hud .killfeed { top: 220px; }
+body.touch .str-vitals { left: 10px; top: 70px; bottom: auto; width: 190px; padding: 6px 8px; }
+body.touch .vital { grid-template-columns: 46px 1fr 30px; font-size: 0.62em; }
+body.touch .str-wallet { top: 34px; left: 10px; padding: 4px 10px; font-size: 0.9em; }
+body.touch .str-weapon { min-width: 0; padding: 4px 10px; right: 10px; bottom: 8px; }
+body.touch .str-weapon .ammo { font-size: 22px; }
+body.touch .str-weapon .slots { display: none; }
+body.touch .equip-bar { bottom: 8px; gap: 4px; }
+body.touch .eq { width: 44px; height: 44px; font-size: 18px; }
+body.touch .objective { top: 34px; font-size: 0.72em; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+body.touch .topbar { top: 4px; padding: 3px 12px; gap: 10px; min-width: 0; }
+body.touch .tb-timer { font-size: 24px; min-width: 70px; }
+body.touch .tb-base { width: 150px; }
+body.touch .host-fab { top: auto; bottom: 60px; left: 10px; }
+body.touch .chat-box { display: none; }
+/* defender on touch */
+.def-toggles { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 6px; pointer-events: auto; z-index: 3; }
+.palette.collapsed, .question-card.collapsed { display: none; }
+body.touch .def-wallet { top: 48px; padding: 4px 10px; font-size: 0.95em; }
+body.touch .palette { top: 92px; bottom: 60px; width: 200px; }
+body.touch .tcard .ds { display: none; }
+body.touch .question-card { top: 48px; width: min(340px, 42vw); padding: 10px 12px; max-height: calc(100vh - 140px); overflow: auto; }
+body.touch .qc-text { font-size: 1em; margin: 6px 0 8px; }
+body.touch .qc-opt { padding: 9px 10px; }
+body.touch .abilities { bottom: 8px; left: auto; right: 12px; transform: none; gap: 5px; }
+body.touch .ability { width: 56px; height: 56px; }
+body.touch .ability .nm { display: none; }
+body.touch .tower-panel { left: 50%; transform: translateX(-50%); bottom: 72px; width: min(320px, 92vw); }
+body.touch[data-role="defender"] .killfeed { left: auto; right: 12px; top: auto; bottom: 72px; align-items: flex-end; }
+.touch-ui { z-index: 2; }
+body.touch .equip-bar, body.touch .host-fab { z-index: 6; }
+/* compact thumb layout for phones (short landscape screens) */
+@media (max-height: 520px) {
+  .t-fire { right: max(18px, env(safe-area-inset-right)); bottom: 72px; width: 84px; height: 84px; font-size: 30px; }
+  .t-reload { right: 112px; bottom: 52px; width: 52px; height: 52px; font-size: 22px; }
+  .t-aim { right: 112px; bottom: 116px; width: 52px; height: 52px; font-size: 21px; }
+  .t-jump { right: 22px; bottom: 168px; width: 56px; height: 56px; }
+  .t-swap { right: 146px; top: 36px; } .t-shop { right: 146px; top: 88px; } .t-full { right: 146px; top: 140px; }
+  .t-sprint { left: max(16px, env(safe-area-inset-left)); bottom: 150px; width: 54px; height: 54px; font-size: 21px; }
+  .t-move-hint { left: 96px; bottom: 64px; width: 84px; height: 84px; }
+  body.touch .eq { width: 40px; height: 40px; font-size: 16px; }
+  body.touch .host-fab { bottom: auto; top: 140px; }
+}

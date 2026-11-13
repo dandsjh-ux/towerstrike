@@ -10,6 +10,7 @@ import { Sfx } from './audio.js';
 import { Entities } from './entities.js';
 import { DefenderMode, SpectatorMode } from './defender.js';
 import { StrikerMode } from './striker.js';
+import { detectTouch } from './touch.js';
 
 const net = new Net();
 const sfx = new Sfx();
@@ -27,7 +28,9 @@ const ctx = {
   phase: () => (lastSnap ? lastSnap.ph : 'prep'),
   paused: () => !!(lastSnap && lastSnap.pa),
   myId: () => myId,
+  touch: detectTouch(),
 };
+document.body.classList.toggle('touch', ctx.touch);
 ctx.mode = () => mode;
 window.__ts = ctx; // handy for debugging in the console
 

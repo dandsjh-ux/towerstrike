@@ -6,6 +6,7 @@ import { escapeHtml as esc } from '/shared/util.js';
 import { buildTower, MAT } from './voxel.js';
 import { PAD_Y } from './world.js';
 import { $ } from './ui.js';
+import { attachIsoTouch } from './touch.js';
 
 const MODE_LABEL = { first: 'First', last: 'Last', close: 'Closest', strong: 'Strongest', weak: 'Weakest', air: 'Air/Troops' };
 const GROUPS = [
@@ -46,6 +47,7 @@ export class IsoCamera {
     window.addEventListener('mousedown', this.onDown); window.addEventListener('mousemove', this.onMove); window.addEventListener('mouseup', this.onUp);
     this.ctxMenu = (e) => e.preventDefault();
     window.addEventListener('contextmenu', this.ctxMenu);
+    this.detachTouch = attachIsoTouch(this, world.renderer.domElement);
     this.update(0);
   }
   pan(rx, fz) {
@@ -92,6 +94,7 @@ export class IsoCamera {
     window.removeEventListener('wheel', this.onWheel); window.removeEventListener('mousedown', this.onDown);
     window.removeEventListener('mousemove', this.onMove); window.removeEventListener('mouseup', this.onUp);
     window.removeEventListener('contextmenu', this.ctxMenu);
+    this.detachTouch?.();
   }
 }
 
@@ -123,6 +126,15 @@ export class DefenderMode {
     this.q = null; this.qState = 'wait'; this.qResult = null;
     this.ghost = null; this.ghostType = null;
     $('def-hud').classList.remove('hidden');
+    if (ctx.touch) {
+      // small screens: let the player fold the side panels away to see the field
+      const tb = document.createElement('div');
+      tb.className = 'def-toggles';
+      tb.innerHTML = '<button class="btn small" data-t="palette">🏗 Towers</button><button class="btn small" data-t="question-card">❓ Quiz</button>';
+      $('def-hud').appendChild(tb);
+      tb.querySelectorAll('[data-t]').forEach((b) => b.onclick = () => $(b.dataset.t).classList.toggle('collapsed'));
+      this.toggles = tb;
+    }
     $('hud-hint').textContent = 'Click a tower card, then a green pad · Click towers to manage · 1–4 answer · Z X C V F abilities · WASD/right-drag pan · Q/E rotate · wheel zoom';
     this.buildPalette();
     this.buildAbilities();
@@ -147,6 +159,8 @@ export class DefenderMode {
     this.ctx.world.showGrid(null);
     this.ctx.ents.selectedTower = 0; this.ctx.ents.hoverTower = 0;
     $('def-hud').classList.add('hidden');
+    this.toggles?.remove();
+    $('palette').classList.remove('collapsed'); $('question-card').classList.remove('collapsed');
     $('tower-panel').classList.add('hidden');
   }
   get s() { return this.ctx.settings(); }
@@ -163,6 +177,7 @@ export class DefenderMode {
   pick(type) {
     this.armed = null;
     this.sel = this.sel === type ? null : type;
+    if (this.ctx.touch && this.sel && window.innerWidth < 1000) $('palette').classList.add('collapsed'); // show the field to tap a pad
     this.selectTower(0);
     this.refreshPalette();
     this.ctx.sfx.play('click');
@@ -219,6 +234,8 @@ export class DefenderMode {
   }
   click(e) {
     if (e.button !== 0) return;
+    this.mouse = { x: e.clientX, y: e.clientY }; // taps have no hover position
+    if ((this.iso.touchMoved || 0) > 12) { this.iso.touchMoved = 0; return; } // that was a drag/pinch
     const ents = this.ctx.ents, net = this.ctx.net;
     if (this.armed) {
       const a = ABILITIES[this.armed];

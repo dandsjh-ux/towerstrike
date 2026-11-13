@@ -5,6 +5,7 @@ import { slideMove, T } from '/shared/maps.js';
 import { escapeHtml as esc } from '/shared/util.js';
 import { buildViewWeapon, playerColor } from './voxel.js';
 import { $ } from './ui.js';
+import { StrikerTouch } from './touch.js';
 
 const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
 
@@ -72,6 +73,8 @@ export class StrikerMode {
     window.addEventListener('wheel', this.onWheel, { passive: true });
     window.addEventListener('contextmenu', this.ctxMenu);
     document.addEventListener('pointerlockchange', this.onLockChange);
+    this.touch = ctx.touch ? new StrikerTouch(this) : null;
+    if (this.touch) canvas.removeEventListener('click', this.onLockClick);
     this.updateLockUi();
   }
   dispose() {
@@ -83,6 +86,7 @@ export class StrikerMode {
     window.removeEventListener('wheel', this.onWheel);
     window.removeEventListener('contextmenu', this.ctxMenu);
     document.removeEventListener('pointerlockchange', this.onLockChange);
+    this.touch?.dispose();
     this.ctx.world.renderer.domElement.removeEventListener('click', this.onLockClick);
     document.exitPointerLock?.();
     this.ctx.ents.fps = false;
@@ -90,7 +94,8 @@ export class StrikerMode {
     $('shop').classList.add('hidden');
   }
   get s() { return this.ctx.settings(); }
-  locked() { return document.pointerLockElement === this.ctx.world.renderer.domElement; }
+  // Touch devices have no pointer lock: on-screen controls are always "live".
+  locked() { return !!this.touch || document.pointerLockElement === this.ctx.world.renderer.domElement; }
   updateLockUi() {
     $('click-to-play').classList.toggle('hidden', this.locked() || this.shopOpen || this.ctx.ui.chatOpen || this.ctx.ui.screen !== 'game');
   }
@@ -163,9 +168,10 @@ export class StrikerMode {
     if (w.spinup) { this.spin = Math.min(w.spinup, this.spin + 1 / 60); if (this.spin < w.spinup) return; }
     const stim = this.myFlags() & 8 ? EQUIPMENT.stim.rateMult : 1;
     if (now - this.lastShot < 1 / (w.rate * stim)) return;
-    if (!w.auto && !this.clicked) return;
+    if (!w.auto && !this.clicked && !this.touch) return; // on touch, holding fire repeats semi-autos at their rate
     if ((this.mag[this.weapon] || 0) <= 0) { this.ctx.sfx.play('dry'); this.reload(); return; }
     this.clicked = false;
+    if (this.touch) this.aimAssist();
     this.lastShot = now;
     this.mag[this.weapon]--;
     const cam = this.camera;
@@ -198,6 +204,23 @@ export class StrikerMode {
     this.kick = Math.min(1, this.kick + w.recoil * 6 + 0.15);
     this.renderWeaponHud();
     if (this.mag[this.weapon] <= 0) this.reload();
+  }
+  // Gentle aim assist for thumbs: nudge toward a tower (or the core) that's already almost under the crosshair.
+  aimAssist() {
+    const eye = this.camera.position;
+    let best = null, bestA = 0.075;
+    const consider = (x, y, z) => {
+      const dx = x - eye.x, dy = y - eye.y, dz = z - eye.z, hd = Math.hypot(dx, dz);
+      if (hd > 90) return;
+      let dyaw = Math.atan2(-dx, -dz) - this.yaw;
+      while (dyaw > Math.PI) dyaw -= Math.PI * 2; while (dyaw < -Math.PI) dyaw += Math.PI * 2;
+      const dp = Math.atan2(dy, hd) - this.pitch;
+      const a = Math.hypot(dyaw, dp);
+      if (a < bestA) { bestA = a; best = { dyaw, dp }; }
+    };
+    for (const t of this.ctx.ents.towers.values()) if (!t.disabled && t.obj.visible) consider(t.x, t.y + t.def.h * 0.5, t.z);
+    if (this.inShieldRange()) consider(this.map.base.x, 4, this.map.base.z);
+    if (best) { this.yaw += best.dyaw * 0.55; this.pitch += best.dp * 0.55; }
   }
   inShieldRange() {
     const m = this.map;
@@ -235,11 +258,12 @@ export class StrikerMode {
     const k = this.keys;
     const paused = this.ctx.paused();
     const input = !paused && this.alive && this.locked() && !this.ctx.ui.chatOpen && !this.shopOpen;
-    const fwd = (input && (k.has('KeyW') || k.has('ArrowUp')) ? 1 : 0) - (input && (k.has('KeyS') || k.has('ArrowDown')) ? 1 : 0);
-    const str = (input && (k.has('KeyD') || k.has('ArrowRight')) ? 1 : 0) - (input && (k.has('KeyA') || k.has('ArrowLeft')) ? 1 : 0);
+    const tm = this.touch && this.touch.move.active ? this.touch.move : null;
+    const fwd = tm ? (input ? -tm.y : 0) : (input && (k.has('KeyW') || k.has('ArrowUp')) ? 1 : 0) - (input && (k.has('KeyS') || k.has('ArrowDown')) ? 1 : 0);
+    const str = tm ? (input ? tm.x : 0) : (input && (k.has('KeyD') || k.has('ArrowRight')) ? 1 : 0) - (input && (k.has('KeyA') || k.has('ArrowLeft')) ? 1 : 0);
     const w = WEAPONS[this.weapon];
     let speed = PLAYER.speed * (SHIELDS[this.me.shield]?.speedMult || 1);
-    const sprint = input && k.has('ShiftLeft') && fwd > 0 && !this.mouseDown && !this.rmb;
+    const sprint = input && (k.has('ShiftLeft') || (this.touch && this.touch.sprint)) && fwd > 0.4 && !this.mouseDown && !this.rmb;
     if (sprint) speed *= PLAYER.sprintMult;
     if (w.moveMult && (this.mouseDown || this.spin > 0)) speed *= w.moveMult;
     if (this.rmb) speed *= 0.65;
@@ -247,13 +271,14 @@ export class StrikerMode {
     if (f & 8) speed *= EQUIPMENT.stim.speedMult;
     if (f & 32 && this.myState) speed *= this.myState[12] || 1;
     const wish = new THREE.Vector3(str, 0, -fwd);
-    if (wish.lengthSq() > 0) wish.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
+    if (wish.lengthSq() > 1) wish.normalize(); // analog stick keeps partial speeds; keyboard diagonals are capped
+    if (wish.lengthSq() > 0) wish.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
     const accel = this.onGround ? 60 : 14;
     const target = wish.multiplyScalar(speed);
     const dvx = target.x - this.vel.x, dvz = target.z - this.vel.z;
     const dl = Math.hypot(dvx, dvz);
     if (dl > 0) { const a = Math.min(dl, accel * dt); this.vel.x += (dvx / dl) * a; this.vel.z += (dvz / dl) * a; }
-    if (input && k.has('Space') && this.onGround) { this.vel.y = PLAYER.jump; this.onGround = false; this.ctx.sfx.play('jump'); }
+    if (input && (k.has('Space') || (this.touch && this.touch.jump)) && this.onGround) { this.vel.y = PLAYER.jump; this.onGround = false; this.ctx.sfx.play('jump'); }
     this.vel.y -= PLAYER.gravity * dt;
     const np = slideMove(this.map, this.pos.x, this.pos.z, this.vel.x * dt, this.vel.z * dt, PLAYER.radius, this.blockedTiles());
     if (Math.abs(np.x - (this.pos.x + this.vel.x * dt)) > 1e-4) this.vel.x = 0;
@@ -374,7 +399,7 @@ export class StrikerMode {
     const banned = new Set(this.s.bannedEquipment);
     $('equip-bar').innerHTML = EQUIP_IDS.filter((id) => !banned.has(id)).map((id) => {
       const n = this.me.equip?.[id] || 0;
-      return `<div class="eq ${n ? '' : 'empty'}" title="${EQUIPMENT[id].name}"><span class="k">${EQUIPMENT[id].key}</span>${EQUIPMENT[id].icon}<span class="n">${n}</span></div>`;
+      return `<div class="eq ${n ? '' : 'empty'}" data-e="${id}" title="${EQUIPMENT[id].name}"><span class="k">${EQUIPMENT[id].key}</span>${EQUIPMENT[id].icon}<span class="n">${n}</span></div>`;
     }).join('');
   }
   toggleShop(force) {
