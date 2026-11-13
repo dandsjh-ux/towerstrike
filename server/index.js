@@ -107,7 +107,7 @@ wss.on('connection', (ws) => {
         const r = room.addPlayer(m.name, ws);
         conn.room = room; conn.player = r.player;
         room.welcome(r.player);
-        room.announceJoin(r.player);
+        room.announceJoin(r.player, r.rejoined);
         room.broadcastLobby();
       } else if (m.t === 'join') {
         const room = rooms.get(String(m.code || '').toUpperCase().trim());
@@ -116,7 +116,7 @@ wss.on('connection', (ws) => {
         if (r.error) return send({ t: 'error', msg: r.error, fatal: true });
         conn.room = room; conn.player = r.player;
         room.welcome(r.player);
-        room.announceJoin(r.player);
+        room.announceJoin(r.player, r.rejoined);
         room.broadcastLobby();
       } else if (m.t === 'resume') {
         const room = rooms.get(String(m.code || '').toUpperCase().trim());

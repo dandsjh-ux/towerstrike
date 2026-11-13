@@ -23,6 +23,7 @@ export class Room {
     this.results = null;
     this.chatLog = [];
     this.nextPid = 1;
+    this.departed = new Map(); // lower-case name -> { id, role } of humans who left/were kicked, so they can rejoin
     this.onEmpty = onEmpty || (() => {});
     this.emptySince = null;
     this.lastLoop = 0; this.acc = 0; this.tickN = 0;
@@ -47,14 +48,29 @@ export class Room {
     return 'striker';
   }
   addPlayer(name, ws) {
+    const raw = String(name || '').replace(/[^\p{L}\p{N} _.\-]/gu, '').trim().slice(0, 16) || 'Player';
+    const key = raw.toLowerCase();
+    // 1) Same name as an offline seat (e.g. rejoining from another tab/device without the token): reclaim it.
+    const offline = [...this.players.values()].find((x) => !x.isBot && !x.connected && x.name.toLowerCase() === key);
+    if (offline) { this.reconnect(offline.token, ws); return { player: offline, rejoined: true }; }
     if (this.size >= MAX_PLAYERS) return { error: `Room is full (max ${MAX_PLAYERS} players including bots).` };
-    const p = { id: this.nextPid++, name: this.cleanName(name), token: crypto.randomBytes(16).toString('hex'), ws, role: this.defaultRole(), isBot: false, connected: true, joinedAt: Date.now() };
+    // 2) A player who left or was kicked earlier: same id (so match progress is restored) and previous role.
+    const prev = this.departed.get(key);
+    const p = { id: prev ? prev.id : this.nextPid++, name: this.cleanName(raw), token: crypto.randomBytes(16).toString('hex'), ws, role: this.defaultRole(), isBot: false, connected: true, joinedAt: Date.now() };
     this.players.set(p.id, p);
+    if (prev) { this.departed.delete(key); this.restoreRole(p, prev.role); }
     if (!this.hostId || !this.players.get(this.hostId) || !this.players.get(this.hostId).connected) this.hostId = p.id;
     this.emptySince = null;
-    return { player: p };
+    return { player: p, rejoined: !!prev };
   }
-  announceJoin(p) { this.sysChat(`${p.name} joined${p.role !== 'spectator' ? ` as ${p.role}` : ' (spectating until the host assigns a role)'}.`); }
+  restoreRole(p, role) {
+    const defTaken = [...this.players.values()].some((x) => x !== p && x.role === 'defender');
+    if (this.state !== 'game' || !this.game) { p.role = role === 'defender' && defTaken ? 'striker' : role; return; }
+    if (role === 'striker') { p.role = 'striker'; this.game.addStriker(p); }
+    else if (role === 'defender' && !defTaken) { p.role = 'defender'; this.game.setDefender(p); }
+    else p.role = 'spectator';
+  }
+  announceJoin(p, rejoined = false) { if (rejoined) { this.sysChat(`${p.name} rejoined${p.role !== 'spectator' ? ` as ${p.role}` : ''}.`); return; } this.sysChat(`${p.name} joined${p.role !== 'spectator' ? ` as ${p.role}` : ' (spectating until the host assigns a role)'}.`); }
   addBot(role) {
     if (this.size >= MAX_PLAYERS) return { error: 'Room is full.' };
     if (role === 'defender' && [...this.players.values()].some((p) => p.role === 'defender')) {
@@ -82,7 +98,7 @@ export class Room {
   disconnect(p) {
     p.connected = false; p.ws = null; p.discAt = Date.now();
     if (this.state === 'lobby') {
-      setTimeout(() => { if (!p.connected && this.players.has(p.id) && this.state === 'lobby') { this.removePlayer(p.id); } }, 15000);
+      setTimeout(() => { if (!p.connected && this.players.has(p.id) && this.state === 'lobby') { this.removePlayer(p.id, 'disconnected'); } }, 60000);
     }
     if (this.hostId === p.id) setTimeout(() => this.ensureHost(), 8000);
     if (!this.connectedHumans().length) this.emptySince = Date.now();
@@ -102,6 +118,10 @@ export class Room {
     const p = this.players.get(id);
     if (!p) return;
     this.players.delete(id);
+    if (!p.isBot) {
+      this.departed.set(p.name.toLowerCase(), { id: p.id, role: p.role });
+      if (this.departed.size > 40) this.departed.delete(this.departed.keys().next().value);
+    }
     if (this.game) {
       if (p.role === 'striker') this.game.removeStriker(id);
       if (p.role === 'defender' && this.game.isDefender(id)) this.game.clearDefender();

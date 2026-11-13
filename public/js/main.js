@@ -123,8 +123,21 @@ net.on('open', () => {
   if (net.session) net.send({ t: 'resume', code: net.session.code, token: net.session.token });
   else if (!ui.screen || ui.screen === 'title') ui.show('title');
 });
+// Another tab/device resumed this seat: stop here and offer to take it back.
+net.on('replaced', () => {
+  clearMode(); document.exitPointerLock?.();
+  ui.modal('<h2>Playing in another window</h2><p>Your seat was taken over by another tab or device. Only one can play at a time.</p><button class="btn primary big" id="btn-play-here">Play here instead</button>');
+  $('btn-play-here').onclick = () => { ui.closeModal(); net.connect(); };
+});
 net.on('close', () => { if (ui.screen && ui.screen !== 'title') $('conn-status').classList.remove('hidden'); });
-net.on('resumeFailed', () => { net.clearSession(); ui.show('title'); });
+// Our seat is gone (e.g. removed after a long disconnect): rejoin the same room by name automatically.
+net.on('resumeFailed', () => {
+  const s = net.session;
+  const name = localStorage.getItem('ts_name');
+  net.clearSession();
+  if (s && s.code && name) { ui.toast(`Rejoining room ${s.code}…`); net.send({ t: 'join', code: s.code, name }); }
+  else ui.show('title');
+});
 net.on('welcome', (m) => {
   myId = m.id; ui.myId = myId; ents.myId = myId;
   net.saveSession({ code: m.code, token: m.token });
@@ -170,8 +183,16 @@ net.on('s', (m) => {
 net.on('p', (m) => { for (const e of m.e) { if (mode) mode.onPrivate(e); if (e.k === 'err' && modeRole !== 'defender') ui.toast(e.msg, 'error'); } });
 net.on('me', (m) => { if (mode && m.role === modeRole) mode.onMe(m); });
 net.on('chat', (m) => ui.addChat(m));
-net.on('error', (m) => { ui.toast(m.msg, 'error'); if (ui.screen === 'title' || !ui.screen) $('title-error').textContent = m.msg; sfx.play('error'); });
-net.on('kicked', (m) => { net.clearSession(); net.wanted = false; alert(`You were removed from the room${m.reason ? `: ${m.reason}` : ''}.`); location.href = location.pathname; });
+net.on('error', (m) => { if (m.fatal && !net.session) ui.show('title'); ui.toast(m.msg, 'error'); if (ui.screen === 'title' || !ui.screen) $('title-error').textContent = m.msg; sfx.play('error'); });
+// Removed by the host: back to the title with the room code filled in, so Join puts you straight back in.
+net.on('kicked', (m) => {
+  const code = net.session?.code || room?.code || '';
+  net.clearSession();
+  clearMode(); ents.reset(); fx.clear(); lastSnap = null; startMsg = null;
+  ui.show('title');
+  $('code-input').value = code;
+  $('title-error').textContent = `You were removed from room ${code}${m.reason ? ` (${m.reason})` : ''}. Press Join to rejoin.`;
+});
 net.on('over', (m) => { clearMode(); ui.renderResults(m.results, room); ui.show('results'); sfx.play(m.results.winner === 'defender' ? 'correct' : 'explosion'); });
 net.on('lobby', () => { clearMode(); ents.reset(); fx.clear(); lastSnap = null; ui.show('lobby'); if (room) ui.renderLobby(room); });
 net.on('qreport', (m) => ui.renderQReport(m));

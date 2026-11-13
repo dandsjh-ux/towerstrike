@@ -186,6 +186,28 @@ test('full multiplayer flow: 6 players, roles, CSV upload, host controls, combat
   assert.ok(me.coins >= 500);
   host.send({ t: 'kick', id: ids[3] });
   await others[3].wait((m) => m.t === 'kicked');
+  others[3].close();
+
+  // a kicked player can rejoin straight away with the code + same name: same seat id, same role
+  const back = new Client('back'); await back.open();
+  back.send({ t: 'join', code, name: 'P3' });
+  const wb = await back.wait((m) => m.t === 'welcome');
+  assert.equal(wb.id, ids[3], 'kicked player gets their old seat back');
+  const sb = await back.wait((m) => m.t === 'start');
+  assert.equal(sb.players.find((p) => p.id === ids[3]).role, 'striker', 'and their striker role');
+
+  // rejoining from a new browser (no token) reclaims the offline seat, keeping match progress (coins)
+  others[1].close();
+  await new Promise((r) => setTimeout(r, 300));
+  const dev2 = new Client('dev2'); await dev2.open();
+  dev2.send({ t: 'join', code, name: 'p1' });
+  const wd = await dev2.wait((m) => m.t === 'welcome');
+  assert.equal(wd.id, ids[1], 'offline seat reclaimed by name');
+  const me2 = await dev2.wait((m) => m.t === 'me' && m.role === 'striker', 3000, 'me after reclaim');
+  assert.ok(me2.coins >= 500, 'coins kept');
+  const roomAfter = host.latestRoom() || await host.wait((m) => m.t === 'room');
+  assert.ok(roomAfter.players.length <= 6);
+  back.close(); dev2.close();
 
   // reconnect with the session token resumes the seat
   const token = others[2].welcome.token;

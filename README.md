@@ -12,7 +12,7 @@ round; the core never regenerates.
 ```bash
 npm install
 npm start          # http://localhost:3000
-npm test           # 38 tests: rules, maps, CSV, real WebSocket match, balance regression
+npm test           # 41 tests: rules, maps, CSV, real WebSocket match, balance regression
 npm run balance    # full bot-vs-bot balance report (all maps × 1-5 strikers)
 ```
 
@@ -80,6 +80,17 @@ Settings include: map, rounds, prep/assault length, core HP multiplier, lockdown
 multipliers, reward scaling on/off, sell refund, tower cap, seconds per question, wrong-answer lockout,
 reveal answers, shuffle options, respawn time, striker HP, tower damage, tower auto-reboot, scouting on/off,
 checkpoints on/off, and bot skill.
+
+## Disconnects and rejoining
+
+- **Dropped connection or page refresh:** the client reconnects automatically and resumes the same seat
+  (role, coins, weapons, stats). Seats are held for the whole match, and for 60 s in the lobby.
+- **Seat already gone** (e.g. a long lobby disconnect): the client rejoins the same room by name automatically.
+- **Kicked by the host:** the player lands on the title screen with the room code filled in; pressing **Join**
+  puts them back in their old seat with their previous role and match progress. The host can kick again if needed.
+- **New browser or device:** join with the room code and the **same name** to reclaim your offline seat.
+- Each browser tab is a separate player. If the same seat is opened elsewhere, the old window stops and offers
+  "Play here instead" (no tug-of-war between tabs).
 
 ## Question bank (CSV, up to 100)
 

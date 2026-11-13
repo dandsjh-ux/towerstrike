@@ -4,7 +4,9 @@ export class Net {
     this.ws = null;
     this.handlers = new Map();
     this.session = null;
-    try { this.session = JSON.parse(localStorage.getItem('ts_session') || 'null'); } catch { this.session = null; }
+    // Per-tab session: a refresh resumes the seat, while two tabs are two independent players.
+    try { this.session = JSON.parse(sessionStorage.getItem('ts_session') || 'null'); } catch { this.session = null; }
+    try { localStorage.removeItem('ts_session'); } catch { /* old builds stored it here */ }
     this.retry = 0;
     this.wanted = false;
     this.rtt = 0;
@@ -19,17 +21,20 @@ export class Net {
       this.ws = ws;
       ws.onopen = () => { this.retry = 0; this.emit('open', {}); resolve(); };
       ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } if (m.t === 'pong') this.rtt = performance.now() - m.ts; this.emit(m.t, m); };
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
+        if (this.ws !== ws) return;
+        // 4000: this seat was taken over by another tab/device. Don't fight over it.
+        if (ev.code === 4000) { this.wanted = false; this.emit('replaced', {}); return; }
         this.emit('close', {});
         if (!this.wanted) return;
         const delay = Math.min(5000, 400 * 2 ** this.retry++);
-        setTimeout(() => this.connect().then(() => { if (this.session) this.send({ t: 'resume', code: this.session.code, token: this.session.token }); }), delay);
+        setTimeout(() => { if (this.wanted) this.connect(); }, delay); // the 'open' handler resumes the session
       };
       ws.onerror = () => {};
     });
   }
   send(o) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(o)); }
-  saveSession(s) { this.session = s; localStorage.setItem('ts_session', JSON.stringify(s)); }
-  clearSession() { this.session = null; localStorage.removeItem('ts_session'); }
+  saveSession(s) { this.session = s; sessionStorage.setItem('ts_session', JSON.stringify(s)); }
+  clearSession() { this.session = null; sessionStorage.removeItem('ts_session'); }
   ping() { this.send({ t: 'ping', ts: performance.now() }); }
 }
