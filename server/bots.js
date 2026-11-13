@@ -345,16 +345,22 @@ export class BotDefender {
     if (best === null) return null;
     return { tx: best % m.w, tz: (best / m.w) | 0 };
   }
+  // Upgrade the weakest, most valuable tower we can afford. Returns true if one was upgraded.
+  tryUpgrade(reserve) {
+    const g = this.g, d = this.d;
+    const ups = [...g.towers.values()].filter((t) => !t.disabled && t.level < MAX_LEVEL && t.st.place === 'ground' && t.st.kind !== 'eco')
+      .sort((a, b) => a.level - b.level || TOWERS[b.type].cost - TOWERS[a.type].cost);
+    for (const t of ups) {
+      if (d.coins - upgradeCost(t.type, t.level + 1) >= reserve) { g.onUpgrade(t.id); return true; }
+    }
+    return false;
+  }
   build() {
     const g = this.g, d = this.d;
     const reserve = g.phase === 'assault' ? 90 : 0;
     // Upgrade when the field is reasonably full
-    if (g.towers.size >= 12 && d.coins > 450 + reserve) {
-      const ups = [...g.towers.values()].filter((t) => !t.disabled && t.level < MAX_LEVEL && t.st.place === 'ground' && t.st.kind !== 'eco')
-        .sort((a, b) => a.level - b.level || TOWERS[b.type].cost - TOWERS[a.type].cost);
-      if (ups.length && d.coins - upgradeCost(ups[0].type, ups[0].level + 1) >= reserve) { g.onUpgrade(ups[0].id); return; }
-    }
-    if (g.towers.size >= g.s.maxTowers) return;
+    if (g.towers.size >= 7 && d.coins > 300 + reserve && this.tryUpgrade(reserve)) return;
+    if (g.towers.size >= g.s.maxTowers) { this.tryUpgrade(reserve); return; }
     for (let tries = 0; tries < BUILD_PLAN.length; tries++) {
       const type = BUILD_PLAN[this.planI % BUILD_PLAN.length];
       const def = TOWERS[type];
@@ -365,6 +371,8 @@ export class BotDefender {
       this.planI++;
       if (tile && g.onBuild(type, tile.tx, tile.tz)) return;
     }
+    // Every tower type is at its cap (or has no valid pad): pour the coins into upgrades instead.
+    this.tryUpgrade(reserve);
   }
   abilities() {
     const g = this.g, d = this.d, now = g.time;

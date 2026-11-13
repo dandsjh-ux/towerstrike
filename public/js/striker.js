@@ -34,6 +34,7 @@ export class StrikerMode {
     this.sendT = 0; this.stepT = 0;
     this.sens = Number(localStorage.getItem('ts_sens') || 0.0022);
     this.shopOpen = false; this.shopTab = 'w';
+    this.nade = 'frag'; // selected grenade (G throws it, T cycles)
     this.myState = null;
     this.dead = false;
     this.alive = true;
@@ -110,6 +111,8 @@ export class StrikerMode {
     if (k === 'KeyR') this.reload();
     if (k === 'Digit1') { const prim = this.me.primary && this.me.owned.includes(this.me.primary) ? this.me.primary : this.me.owned.find((w) => WEAPONS[w].slot === 1); if (prim) this.switchTo(prim); }
     if (k === 'Digit2') this.switchTo('pistol');
+    if (k === 'KeyG') this.throwGrenade();
+    if (k === 'KeyT') this.cycleGrenade();
     const eqKey = EQUIP_IDS.find((id) => `Digit${EQUIPMENT[id].key}` === k);
     if (eqKey) this.useEquip(eqKey);
     if (k === 'Space') e.preventDefault();
@@ -146,6 +149,29 @@ export class StrikerMode {
     this.ctx.net.send({ t: 'reload' });
     this.ctx.sfx.play('reload');
   }
+  // Grenades: G throws the selected one, T (or the touch swap button) cycles frag -> EMP -> smoke.
+  grenadeIds() { return EQUIP_IDS.filter((id) => EQUIPMENT[id].kind === 'throw' && !this.s.bannedEquipment.includes(id)); }
+  selectedGrenade() {
+    const ids = this.grenadeIds();
+    if (!ids.length) return null;
+    if (!ids.includes(this.nade)) this.nade = ids[0];
+    if (!(this.me.equip?.[this.nade] > 0)) { const have = ids.find((id) => this.me.equip?.[id] > 0); if (have) this.nade = have; }
+    return this.nade;
+  }
+  cycleGrenade() {
+    const ids = this.grenadeIds();
+    if (!ids.length) return;
+    const cur = this.selectedGrenade();
+    const order = ids.map((_, i) => ids[(ids.indexOf(cur) + 1 + i) % ids.length]);
+    this.nade = order.find((id) => this.me.equip?.[id] > 0) || order[0];
+    this.ctx.ui.centerMsg(`${EQUIPMENT[this.nade].icon} ${EQUIPMENT[this.nade].name} ready (${this.me.equip?.[this.nade] || 0})`, 900);
+    this.renderEquip();
+  }
+  throwGrenade() {
+    const id = this.selectedGrenade();
+    if (!id) { this.ctx.ui.centerMsg('Grenades are disabled in this match'); return; }
+    this.useEquip(id);
+  }
   useEquip(id) {
     if (!this.alive) return;
     if (this.ctx.phase() !== 'assault') { this.ctx.ui.centerMsg('Gear is usable once the assault begins'); return; }
@@ -153,6 +179,7 @@ export class StrikerMode {
     const dir = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(this.pitch + 0.12, this.yaw, 0, 'YXZ'));
     this.ctx.net.send({ t: 'equip', e: id, d: [dir.x, dir.y, dir.z] });
     this.me.equip[id]--;
+    if (EQUIPMENT[id].kind === 'throw') this.nade = id;
     this.renderEquip();
     if (EQUIPMENT[id].kind === 'throw') { this.ctx.sfx.play('throw'); this.kick = 0.5; }
   }
@@ -397,9 +424,11 @@ export class StrikerMode {
   }
   renderEquip() {
     const banned = new Set(this.s.bannedEquipment);
+    const sel = this.selectedGrenade();
+    this.touch?.syncNade();
     $('equip-bar').innerHTML = EQUIP_IDS.filter((id) => !banned.has(id)).map((id) => {
       const n = this.me.equip?.[id] || 0;
-      return `<div class="eq ${n ? '' : 'empty'}" data-e="${id}" title="${EQUIPMENT[id].name}"><span class="k">${EQUIPMENT[id].key}</span>${EQUIPMENT[id].icon}<span class="n">${n}</span></div>`;
+      return `<div class="eq ${n ? '' : 'empty'} ${id === sel ? 'sel' : ''}" data-e="${id}" title="${EQUIPMENT[id].name}"><span class="k">${EQUIPMENT[id].key}</span>${EQUIPMENT[id].icon}<span class="n">${n}</span></div>`;
     }).join('');
   }
   toggleShop(force) {
@@ -429,14 +458,14 @@ export class StrikerMode {
     }).join('');
     if (this.shopTab === 't') items = TROOP_IDS.filter((id) => !s.bannedTroops.includes(id)).map((id) => {
       const t = TROOPS[id]; const n = me.troops[id] || 0;
-      return this.itemHtml(`t:${id}`, `${t.icon} ${t.name}`, t.cost, t.desc, `${t.count > 1 ? `${t.count} units · ` : ''}${t.hp} HP · ${n}/${TROOP_BUY_LIMIT} this round · ${this.ctx.phase() === 'assault' ? 'deploys now' : 'marches at assault start'}`, false, n >= TROOP_BUY_LIMIT ? 'Limit' : 'Buy', false, n >= TROOP_BUY_LIMIT);
+      return this.itemHtml(`t:${id}`, `${t.icon} ${t.name}`, t.cost, t.desc, `${t.count > 1 ? `${t.count} units · ` : ''}${Math.round(t.hp * (me.buff?.hp || 1))} HP · ${n}/${TROOP_BUY_LIMIT} this round · ${this.ctx.phase() === 'assault' ? 'deploys now' : 'marches at assault start'}`, false, n >= TROOP_BUY_LIMIT ? 'Limit' : 'Buy', false, n >= TROOP_BUY_LIMIT);
     }).join('');
     $('shop').innerHTML = `<div class="shop-head"><h2>Armory</h2><div class="row gap"><span class="coins" style="color:var(--gold);font-weight:700;font-size:1.2em">💰 ${me.coins}</span>
       <label class="small muted">Sensitivity <input type="range" min="0.0006" max="0.006" step="0.0002" value="${this.sens}" id="sens"></label>
       <button class="btn small" id="shop-close">Close (B)</button></div></div>
       <div class="shop-tabs">${tabs.map(([k, l]) => `<button class="btn small ${this.shopTab === k ? 'active' : ''}" data-tab="${k}">${l}</button>`).join('')}</div>
       <div class="shop-grid">${items}</div>
-      <p class="muted small">Weapons & shields are yours for the whole match. Gear and troops are per round. Rewards ×${me.factor} (scaled by squad size).</p>`;
+      <p class="muted small">Weapons & shields are yours for the whole match. Gear and troops are per round. Rewards ×${me.factor} (scaled by squad size).${me.buff && me.buff.hp > 1 ? ` Round buff: strikers and troops have +${Math.round((me.buff.hp - 1) * 100)}% HP and +${Math.round((me.buff.dmg - 1) * 100)}% damage.` : ''}</p>`;
     const sh = $('shop');
     sh.querySelectorAll('[data-tab]').forEach((el) => el.onclick = () => { this.shopTab = el.dataset.tab; this.renderShop(); });
     sh.querySelectorAll('[data-buy]').forEach((el) => el.onclick = () => {

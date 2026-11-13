@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Game } from '../server/game.js';
-import { sanitizeSettings, defaultSettings, defenderFactor, strikerFactor, baseMaxHp, TOWERS, WEAPONS, towerBox, PLAYER, INTERMISSION } from '../shared/defs.js';
+import { sanitizeSettings, defaultSettings, defenderFactor, strikerFactor, baseMaxHp, TOWERS, WEAPONS, towerBox, PLAYER, INTERMISSION, TROOP_BUY_LIMIT, EQUIPMENT, upgradeCost, MAX_LEVEL } from '../shared/defs.js';
 import { T } from '../shared/maps.js';
 import { runMatch } from './sim-helpers.js';
 
@@ -303,4 +303,62 @@ test('results report whole-number coins and points', () => {
     assert.ok(Number.isInteger(p.coinsEarned), `${p.name} coins ${p.coinsEarned}`);
     assert.ok(Number.isInteger(p.points));
   }
+});
+
+test('defender may own at most 2-3 of each tower type, and upgrades are capped at level 3 with rising costs', () => {
+  const g = newGame();
+  g.defender.coins = 99999;
+  for (const [id, d] of Object.entries(TOWERS)) assert.ok(d.max >= 2 && d.max <= 3, `${id} has a 2-3 cap`);
+  const pads = [];
+  for (let i = 0; i < g.map.tiles.length && pads.length < 8; i++) if (g.map.buildable[i]) pads.push({ tx: i % g.map.w, tz: (i / g.map.w) | 0 });
+  const built = pads.map((p) => g.onBuild('sentry', p.tx, p.tz)).filter(Boolean);
+  assert.equal(built.length, TOWERS.sentry.max, 'sentry stops at its cap');
+  const c2 = upgradeCost('sentry', 2), c3 = upgradeCost('sentry', 3);
+  assert.ok(c3 > c2 && c2 > 0, 'each level costs more than the last');
+  const before = g.defender.coins;
+  g.onUpgrade(built[0].id); g.onUpgrade(built[0].id); g.onUpgrade(built[0].id);
+  assert.equal(built[0].level, MAX_LEVEL);
+  assert.equal(before - g.defender.coins, c2 + c3, 'third upgrade request is refused');
+});
+
+test('strikers may buy triple the old troop limit per round', () => {
+  const g = newGame();
+  const a = g.strikers.get(2);
+  a.coins = 99999;
+  for (let i = 0; i < TROOP_BUY_LIMIT; i++) assert.equal(g.onBuy(a, 't:bearer'), true);
+  assert.equal(TROOP_BUY_LIMIT, 6);
+  assert.equal(g.onBuy(a, 't:bearer'), false);
+});
+
+test('strikers, bots and troops are automatically buffed every round', () => {
+  const g = newGame();
+  const a = g.strikers.get(2);
+  const hp1 = a.maxHp;
+  assert.equal(g.buff.hp, 1);
+  const r1 = g.spawnTroop('mech', 2).maxHp;
+  g.endRound(); run(g, INTERMISSION + 0.5);
+  assert.equal(g.round, 2);
+  assert.ok(g.buff.hp > 1 && g.buff.dmg > 1);
+  assert.ok(a.maxHp > hp1 && a.hp === a.maxHp, 'player HP rises each round');
+  assert.ok(g.spawnTroop('mech', 2).maxHp > r1, 'troops spawn tougher');
+  const t = (g.defender.coins = 9999, g.onBuild('sentry', padNearRoute(g).tx, padNearRoute(g).tz));
+  g.startAssault();
+  const dealt = g.damageTower(t, 100, 2);
+  assert.ok(Math.abs(dealt - 100 * g.buff.dmg) < 1e-6, 'damage dealt is boosted');
+});
+
+test('grenades can be thrown by strikers during the assault', () => {
+  const g = newGame();
+  const a = g.strikers.get(2);
+  a.coins = 9999;
+  for (const id of ['frag', 'emp', 'smoke']) assert.equal(g.onBuy(a, `e:${id}`), true);
+  g.startAssault();
+  a.ghost = false;
+  for (const id of ['frag', 'emp', 'smoke']) {
+    const n = g.projs.size;
+    g.onEquip(a, { e: id, d: [0, 0.2, -1] });
+    assert.equal(a.equip[id], 0, `${id} consumed`);
+    assert.equal(g.projs.size, n + 1, `${id} thrown`);
+  }
+  assert.ok(EQUIPMENT.frag.kind === 'throw');
 });

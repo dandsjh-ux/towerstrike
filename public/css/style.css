@@ -125,7 +125,7 @@ body.is-host .guest-only { display: none !important; }
 
 /* HUD common */
 #game-hud { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
-#game-hud .panel, #game-hud button, #game-hud input, #game-hud .palette, #game-hud .question-card, #game-hud .abilities, #game-hud .shop, #game-hud .host-panel, #game-hud .tower-panel, #game-hud .scoreboard { pointer-events: auto; }
+#game-hud .equip-bar, #game-hud .eq, #game-hud .panel, #game-hud button, #game-hud input, #game-hud .palette, #game-hud .question-card, #game-hud .abilities, #game-hud .shop, #game-hud .host-panel, #game-hud .tower-panel, #game-hud .scoreboard { pointer-events: auto; }
 .topbar { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 18px; padding: 8px 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; backdrop-filter: blur(8px); min-width: min(620px, 96vw); justify-content: space-between; }
 .tb-round { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: 0.9em; }
 .phase-pill { font-size: 0.75em; padding: 2px 8px; border-radius: 999px; background: #2e5d2e; letter-spacing: 0.12em; text-align: center; }
@@ -184,6 +184,8 @@ body.is-host .guest-only { display: none !important; }
 .tcard:hover { background: rgba(255, 255, 255, 0.12); }
 .tcard.sel { border-color: var(--def); background: rgba(74, 168, 255, 0.18); }
 .tcard.poor { opacity: 0.5; }
+.tcard.full { opacity: 0.4; }
+.tcard .cnt { display: block; font-size: 0.75em; color: var(--muted); font-weight: 600; text-align: right; }
 .tcard.banned { display: none; }
 .tcard .ic { font-size: 20px; text-align: center; }
 .tcard .nm { font-weight: 600; font-size: 0.88em; line-height: 1.1; }
@@ -267,6 +269,8 @@ body.is-host .guest-only { display: none !important; }
 .eq .k { position: absolute; top: 2px; left: 5px; font-size: 0.45em; color: var(--muted); }
 .eq .n { position: absolute; bottom: 2px; right: 5px; font-size: 0.5em; font-weight: 700; }
 .eq.empty { opacity: 0.3; }
+.eq.sel { border-color: var(--str); box-shadow: 0 0 0 1px var(--str) inset; }
+.eq { cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
 .minimap { position: absolute; right: 12px; top: 74px; width: 200px; height: 200px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.35); }
 #str-hud .killfeed { top: 284px; }
 .objective { position: absolute; top: 82px; left: 50%; transform: translateX(-50%); font-size: 0.85em; background: rgba(0, 0, 0, 0.45); padding: 4px 12px; border-radius: 999px; white-space: nowrap; }
@@ -376,6 +380,10 @@ body.touch .btn { min-height: 34px; }
 .t-jump { right: 34px; bottom: 202px; }
 .t-reload { right: 126px; bottom: 76px; font-size: 26px; }
 .t-sprint { left: max(26px, env(safe-area-inset-left)); bottom: 238px; }
+.t-nade { right: 196px; bottom: 100px; position: absolute; }
+.t-nade .n { position: absolute; bottom: 4px; right: 8px; font-size: 0.5em; font-weight: 700; }
+.t-nade.empty { opacity: 0.55; }
+.t-ncycle { right: 204px; bottom: 170px; }
 .t-swap { right: 18px; top: 168px; }
 .t-shop { right: 70px; top: 168px; }
 .t-full { right: 122px; top: 168px; }
@@ -421,6 +429,8 @@ body.touch .equip-bar, body.touch .host-fab { z-index: 6; }
   .t-reload { right: 112px; bottom: 52px; width: 52px; height: 52px; font-size: 22px; }
   .t-aim { right: 112px; bottom: 116px; width: 52px; height: 52px; font-size: 21px; }
   .t-jump { right: 22px; bottom: 168px; width: 56px; height: 56px; }
+  .t-nade { right: 176px; bottom: 84px; width: 52px; height: 52px; font-size: 22px; }
+  .t-ncycle { right: 182px; bottom: 142px; width: 40px; height: 40px; font-size: 16px; }
   .t-swap { right: 146px; top: 36px; } .t-shop { right: 146px; top: 88px; } .t-full { right: 146px; top: 140px; }
   .t-sprint { left: max(16px, env(safe-area-inset-left)); bottom: 150px; width: 54px; height: 54px; font-size: 21px; }
   .t-move-hint { left: 96px; bottom: 64px; width: 84px; height: 84px; }

@@ -170,7 +170,7 @@ export class DefenderMode {
     const banned = new Set(this.s.bannedTowers);
     $('palette').innerHTML = GROUPS.map(([g, ids]) => `<h4>${g}</h4>` + ids.map((id) => {
       const d = TOWERS[id];
-      return `<div class="tcard ${banned.has(id) ? 'banned' : ''}" data-t="${id}" title="${esc(d.desc)}"><div class="ic">${d.icon}</div><div><div class="nm">${d.name}</div><div class="ds">${esc(d.desc)}</div></div><div class="cost">${d.cost}</div></div>`;
+      return `<div class="tcard ${banned.has(id) ? 'banned' : ''}" data-t="${id}" title="${esc(d.desc)}"><div class="ic">${d.icon}</div><div><div class="nm">${d.name}</div><div class="ds">${esc(d.desc)}</div></div><div class="cost">${d.cost}<small class="cnt" data-cnt="${id}"></small></div></div>`;
     }).join('')).join('');
     $('palette').querySelectorAll('[data-t]').forEach((el) => el.onclick = () => this.pick(el.dataset.t));
   }
@@ -182,7 +182,20 @@ export class DefenderMode {
     this.refreshPalette();
     this.ctx.sfx.play('click');
   }
+  // Each tower type is capped (2-3): show how many are standing and grey out the full ones.
+  refreshCounts() {
+    const have = {};
+    for (const t of this.ctx.ents.towers.values()) have[t.type] = (have[t.type] || 0) + 1;
+    $('palette').querySelectorAll('[data-t]').forEach((el) => {
+      const id = el.dataset.t, d = TOWERS[id];
+      const n = have[id] || 0;
+      const c = el.querySelector('.cnt');
+      if (c && d.max) c.textContent = `${n}/${d.max}`;
+      el.classList.toggle('full', !!d.max && n >= d.max);
+    });
+  }
   refreshPalette() {
+    this.refreshCounts();
     $('palette').querySelectorAll('[data-t]').forEach((el) => {
       el.classList.toggle('sel', el.dataset.t === this.sel);
       el.classList.toggle('poor', TOWERS[el.dataset.t].cost > this.me.coins);
@@ -393,7 +406,7 @@ export class DefenderMode {
     $('def-coins').textContent = me.coins;
     $('def-points').textContent = me.points;
     $('def-mult').textContent = `rewards ×${me.factor}`;
-    if (me.coins !== coinsBefore) this.refreshPalette();
+    if (me.coins !== coinsBefore) this.refreshPalette(); else this.refreshCounts();
     $('abilities').querySelectorAll('[data-a]').forEach((el) => {
       const cd = me.cds[el.dataset.a] || 0;
       const c = el.querySelector('.cd');

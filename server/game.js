@@ -2,7 +2,7 @@
 import {
   TOWERS, TOWER_IDS, towerStats, upgradeCost, towerInvested, towerBox, MAX_LEVEL, TARGET_MODES, ASSAULT_BUILD_TIME, LEVEL_MULT,
   ABILITIES, WEAPONS, WEAPON_IDS, EQUIPMENT, SHIELDS, TROOPS, TROOP_IDS, TROOP_BUY_LIMIT, ZONE_TYPES, CHECKPOINT,
-  ECON, POINTS, DIFFICULTY_MULT, PLAYER, INTERMISSION, defenderFactor, strikerFactor, baseMaxHp, respawnMult, falloff, BASE_DEFENSE, BASE_SHIELD_RANGE,
+  ECON, POINTS, DIFFICULTY_MULT, strikerBuff, PLAYER, INTERMISSION, defenderFactor, strikerFactor, baseMaxHp, respawnMult, falloff, BASE_DEFENSE, BASE_SHIELD_RANGE,
 } from '../shared/defs.js';
 import { buildMap, slideMove, mapBalance, T } from '../shared/maps.js';
 import { rayAABB, pointAABBDist, mulberry32, dist, round2, round1, clamp } from '../shared/util.js';
@@ -34,6 +34,7 @@ export class Game {
     this.over = false; this.winner = null;
     this.roundLog = [];
     this.baseHitAcc = 0;
+    this.buff = strikerBuff(0); // per-round striker-side power-up, refreshed in startPrep
     for (const p of players) {
       if (p.role === 'striker') this.addStriker(p);
       else if (p.role === 'defender') this.setDefender(p);
@@ -77,8 +78,9 @@ export class Game {
   yawToward(fx, fz, tx, tz) { return Math.atan2(-(tx - fx), -(tz - fz)); }
 
   // ------------------------------------------------------------------ roster
+  strikerMaxHp() { return Math.round(PLAYER.hp * this.s.strikerHpMult * this.buff.hp); }
   makeStriker(p) {
-    const maxHp = Math.round(PLAYER.hp * this.s.strikerHpMult);
+    const maxHp = this.strikerMaxHp();
     const a = {
       id: p.id, name: p.name, isBot: !!p.isBot,
       x: this.map.spawn.x, y: 0, z: this.map.spawn.z, yaw: 0, pitch: 0, vx: 0, vz: 0,
@@ -97,7 +99,7 @@ export class Game {
   }
   addStriker(p) {
     let a = this.benched.get(p.id);
-    if (a) { this.benched.delete(p.id); a.name = p.name; }
+    if (a) { this.benched.delete(p.id); a.name = p.name; a.maxHp = this.strikerMaxHp(); }
     else a = this.makeStriker(p);
     this.strikers.set(p.id, a);
     if (p.isBot) this.bots.set(p.id, new BotStriker(this, a, this.s.botSkill));
@@ -142,6 +144,8 @@ export class Game {
     this.phase = 'prep';
     this.timer = this.s.prepTime;
     this.updateFactors();
+    this.buff = strikerBuff(this.round);
+    if (this.round > 1) this.msg(`⚠ Round ${this.round}: the strikers grow stronger (+${Math.round((this.buff.hp - 1) * 100)}% HP, +${Math.round((this.buff.dmg - 1) * 100)}% damage)`, 'striker');
     for (const t of this.towers.values()) this.resetTower(t);
     this.troops.clear(); this.troopQueue = []; this.projs.clear(); this.zones.clear();
     for (const c of this.checkpoints) { c.captured = false; c.cap = 0; }
@@ -150,6 +154,7 @@ export class Game {
     for (const a of this.strikers.values()) {
       if (this.round > 1) this.award(a.id, Math.round(ECON.strStipend * (1 + ECON.strStipendGrowth * (this.round - 2)) * this.sFactor));
       a.troopBuys = {};
+      a.maxHp = this.strikerMaxHp();
       this.resetStriker(a, true);
     }
     if (this.defender && this.round === 1) this.defender.nextQAt = this.time + 2;
@@ -675,6 +680,7 @@ export class Game {
   }
   damageTower(t, dmg, srcPid, opts = {}) {
     if (t.disabled || dmg <= 0) return 0;
+    dmg *= this.buff.dmg; // every attacker is on the striker side
     const before = dmg;
     if (t.shield > 0) { const ab = Math.min(t.shield, dmg); t.shield -= ab; dmg -= ab; }
     t.hp -= dmg; t.lastHurt = this.time;
@@ -702,6 +708,7 @@ export class Game {
   }
   damageBase(dmg, srcPid) {
     if (this.base.hp <= 0 || dmg <= 0 || this.locked) return 0;
+    dmg *= this.buff.dmg;
     if (this.base.fortifyUntil > this.time) dmg *= ABILITIES.fortify.dmgMult;
     dmg = Math.min(dmg, this.base.hp);
     const cap = this.s.coreBreachCap > 0 ? this.base.max * this.s.coreBreachCap / 100 : Infinity;
@@ -982,7 +989,7 @@ export class Game {
     const sp = this.spawnPoint(false);
     const id = this.nextId++;
     const r = {
-      id, type, owner, x: sp.x, z: sp.z, y: d.air ? 4.5 : (d.follow ? 1.2 : 0), hp: d.hp, maxHp: d.hp, alive: true, wp: 1,
+      id, type, owner, x: sp.x, z: sp.z, y: d.air ? 4.5 : (d.follow ? 1.2 : 0), hp: Math.round(d.hp * this.buff.hp), maxHp: Math.round(d.hp * this.buff.hp), alive: true, wp: 1,
       lane: this.rand(-2, 2), slowUntil: 0, slowMult: 1, burnUntil: 0, burnDps: 0, vx: 0, vz: 0, fireT: 0, target: 0, side: this.rand() < 0.5 ? -1 : 1,
     };
     this.troops.set(id, r);
@@ -1305,7 +1312,7 @@ export class Game {
         mag: a.mag, reloading: a.reloadW ? r1(a.reloadUntil - now) : 0, equip: a.equip, shield: a.shieldType, shields: [...a.shieldsOwned],
         troops: a.troopBuys, alive: a.alive, respawn: a.alive ? 0 : r1(Math.max(0, a.respawnAt - now)), shop: this.canShop(a),
         stim: a.effects.stimUntil > now ? r1(a.effects.stimUntil - now) : 0, cloak: a.effects.cloakUntil > now ? r1(a.effects.cloakUntil - now) : 0,
-        prot: now < a.protectUntil ? 1 : 0, factor: r2(this.sFactor),
+        prot: now < a.protectUntil ? 1 : 0, factor: r2(this.sFactor), buff: { hp: r2(this.buff.hp), dmg: r2(this.buff.dmg) },
       };
     }
     if (this.isDefender(pid)) {

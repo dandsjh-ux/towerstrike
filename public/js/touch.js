@@ -1,5 +1,6 @@
 // Touch controls for phones & tablets: striker joystick/look/buttons, and iso-camera gestures.
 import { $ } from './ui.js';
+import { EQUIPMENT } from '/shared/defs.js';
 
 // Touch UI when the primary pointer is a finger (phones/tablets). Override with ?touch=1 / ?touch=0.
 export function detectTouch() {
@@ -30,6 +31,8 @@ export class StrikerTouch {
       <button class="t-btn t-jump" data-b="jump" aria-label="Jump">⤒</button>
       <button class="t-btn t-reload" data-b="reload" aria-label="Reload">⟳</button>
       <button class="t-btn t-sprint" data-b="sprint" aria-label="Sprint">🏃</button>
+      <button class="t-btn t-nade" data-b="nade" aria-label="Throw grenade"><span class="ic">💣</span><span class="n">0</span></button>
+      <button class="t-btn small t-ncycle" data-b="ncycle" aria-label="Switch grenade">🔄</button>
       <button class="t-btn small t-swap" data-b="swap" aria-label="Swap weapon">⇄</button>
       <button class="t-btn small t-shop" data-b="shop" aria-label="Shop">🛒</button>
       <button class="t-btn small t-full" data-b="full" aria-label="Fullscreen">⛶</button>
@@ -113,6 +116,8 @@ export class StrikerTouch {
       case 'reload': m.reload(); break;
       case 'sprint': this.sprint = !this.sprint; el.classList.toggle('on', this.sprint); break;
       case 'swap': m.cycleWeapon(1); break;
+      case 'nade': m.throwGrenade(); break;
+      case 'ncycle': m.cycleGrenade(); break;
       case 'shop': m.toggleShop(); break;
       case 'full': {
         const d = document.documentElement;
@@ -127,6 +132,19 @@ export class StrikerTouch {
     el.classList.remove('down');
     if (b === 'fire') { this.m.mouseDown = false; this.look.delete(e.pointerId); }
     if (b === 'jump') this.jump = false;
+  }
+  // Show the selected grenade type and how many are left on the throw button.
+  syncNade() {
+    const id = this.m.selectedGrenade?.();
+    const b = this.root && this.root.querySelector('.t-nade');
+    if (!b) return;
+    b.classList.toggle('hidden', !id);
+    this.root.querySelector('.t-ncycle').classList.toggle('hidden', !id);
+    if (!id) return;
+    const n = this.m.me.equip?.[id] || 0;
+    b.querySelector('.ic').textContent = EQUIPMENT[id].icon;
+    b.querySelector('.n').textContent = n;
+    b.classList.toggle('empty', n === 0);
   }
   syncButtons() {
     this.root.querySelector('.t-aim').classList.toggle('on', !!this.m.rmb);

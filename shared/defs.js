@@ -29,64 +29,65 @@ export const PLAYER = {
 // ---------------------------------------------------------------- Towers
 // kind: hitscan | shell | mortar | missile | chain | beam | flame | aura | shieldgen | repair | radar | eco | spikes | wall | mine
 // place: ground (build pads beside the route) | path (traps placed on the route)
+// max: how many of this tower the defender may own at once (2-3 each). Upgrade (up to level 3) instead of spamming.
 export const TOWERS = {
   sentry: {
-    name: 'Sentry Gun', icon: '🔫', cost: 100, hp: 450, range: 28, dmg: 5, rate: 4, kind: 'hitscan', air: true,
+    name: 'Sentry Gun', icon: '🔫', cost: 100, max: 3, hp: 450, range: 28, dmg: 5, rate: 4, kind: 'hitscan', air: true,
     dmgType: 'kinetic', h: 3.2, place: 'ground', mode: 'first',
     desc: 'Cheap rapid-fire turret. Hits drones.',
   },
   cannon: {
-    name: 'Cannon', icon: '💣', cost: 175, hp: 650, range: 32, dmg: 45, rate: 0.8, kind: 'shell', splash: 3.2, projSpeed: 32,
+    name: 'Cannon', icon: '💣', cost: 175, max: 3, hp: 650, range: 32, dmg: 45, rate: 0.8, kind: 'shell', splash: 3.2, projSpeed: 32,
     dmgType: 'explosive', h: 3.0, place: 'ground', mode: 'first',
     desc: 'Leads its target with splash shells.',
   },
   frost: {
-    name: 'Frost Spire', icon: '❄️', cost: 150, hp: 500, range: 15, dmg: 6, rate: 2, kind: 'aura', slow: 0.4,
+    name: 'Frost Spire', icon: '❄️', cost: 150, max: 3, hp: 500, range: 15, dmg: 6, rate: 2, kind: 'aura', slow: 0.4,
     dmgType: 'cold', h: 4.2, place: 'ground', mode: 'close',
     desc: 'Pulses cold: slows and chips everyone nearby.',
   },
   tesla: {
-    name: 'Tesla Coil', icon: '⚡', cost: 250, hp: 550, range: 20, dmg: 28, rate: 0.9, kind: 'chain', chains: 3, falloff: 0.7, air: true,
+    name: 'Tesla Coil', icon: '⚡', cost: 250, max: 2, hp: 550, range: 20, dmg: 28, rate: 0.9, kind: 'chain', chains: 3, falloff: 0.7, air: true,
     dmgType: 'energy', h: 4.6, place: 'ground', mode: 'close', troopMult: 1.5,
     desc: 'Arcs lightning across up to 3 targets.',
   },
   sniper: {
-    name: 'Sniper Nest', icon: '🎯', cost: 225, hp: 380, range: 60, dmg: 70, rate: 0.45, kind: 'hitscan',
+    name: 'Sniper Nest', icon: '🎯', cost: 225, max: 2, hp: 380, range: 60, dmg: 70, rate: 0.45, kind: 'hitscan',
     dmgType: 'kinetic', h: 6.0, place: 'ground', mode: 'strong',
     desc: 'Huge range, heavy hits. Fragile.',
   },
   flamer: {
-    name: 'Flamethrower', icon: '🔥', cost: 175, hp: 750, range: 12, dmg: 5, rate: 8, kind: 'flame', burn: 5, burnTime: 3,
+    name: 'Flamethrower', icon: '🔥', cost: 175, max: 3, hp: 750, range: 12, dmg: 5, rate: 8, kind: 'flame', burn: 5, burnTime: 3,
     dmgType: 'fire', h: 2.8, place: 'ground', mode: 'close',
     desc: 'Short-range cone that sets strikers ablaze. Tough.',
   },
   mortar: {
-    name: 'Mortar', icon: '🎆', cost: 275, hp: 600, range: 50, minRange: 10, dmg: 80, rate: 0.4, kind: 'mortar', splash: 4.5, flight: 1.8,
+    name: 'Mortar', icon: '🎆', cost: 275, max: 2, hp: 600, range: 50, minRange: 10, dmg: 80, rate: 0.4, kind: 'mortar', splash: 4.5, flight: 1.8,
     dmgType: 'explosive', h: 2.6, place: 'ground', mode: 'first',
     desc: 'Long-range arcing blasts. Dodgeable, cannot hit close.',
   },
   laser: {
-    name: 'Laser Lance', icon: '🔆', cost: 300, hp: 550, range: 30, dmg: 12, rate: 1, kind: 'beam', ramp: 3, rampMult: 4, air: true,
+    name: 'Laser Lance', icon: '🔆', cost: 300, max: 2, hp: 550, range: 30, dmg: 12, rate: 1, kind: 'beam', ramp: 3, rampMult: 4, air: true,
     dmgType: 'energy', h: 4.0, place: 'ground', mode: 'first',
     desc: 'Continuous beam that ramps up to 4x damage.',
   },
   missile: {
-    name: 'Missile Pod', icon: '🚀', cost: 275, hp: 500, range: 40, dmg: 30, rate: 0.6, salvo: 2, kind: 'missile', splash: 1.6, projSpeed: 24, air: true,
+    name: 'Missile Pod', icon: '🚀', cost: 275, max: 2, hp: 500, range: 40, dmg: 30, rate: 0.6, salvo: 2, kind: 'missile', splash: 1.6, projSpeed: 24, air: true,
     dmgType: 'explosive', h: 3.2, place: 'ground', mode: 'air',
     desc: 'Homing salvos. Prioritises drones and troops.',
   },
   shieldgen: {
-    name: 'Shield Generator', icon: '🛡️', cost: 200, hp: 600, range: 12, kind: 'shieldgen', shield: 160, shieldRegen: 15, shieldDelay: 4,
+    name: 'Shield Generator', icon: '🛡️', cost: 200, max: 2, hp: 600, range: 12, kind: 'shieldgen', shield: 160, shieldRegen: 15, shieldDelay: 4,
     h: 4.0, place: 'ground',
     desc: 'Projects regenerating shields onto nearby towers.',
   },
   repair: {
-    name: 'Repair Bay', icon: '🔧', cost: 225, hp: 500, range: 12, kind: 'repair', heal: 18, rebootTime: 12, rebootHp: 0.4,
+    name: 'Repair Bay', icon: '🔧', cost: 225, max: 2, hp: 500, range: 12, kind: 'repair', heal: 18, rebootTime: 12, rebootHp: 0.4,
     h: 3.2, place: 'ground',
     desc: 'Heals nearby towers and reboots disabled ones.',
   },
   radar: {
-    name: 'Radar Array', icon: '📡', cost: 150, hp: 350, range: 20, kind: 'radar', buffRange: 12, rangeBuff: 0.15,
+    name: 'Radar Array', icon: '📡', cost: 150, max: 2, hp: 350, range: 20, kind: 'radar', buffRange: 12, rangeBuff: 0.15,
     h: 5.0, place: 'ground',
     desc: 'Reveals cloaked strikers. +15% range to nearby towers.',
   },
@@ -96,17 +97,17 @@ export const TOWERS = {
     desc: 'Generates coins every second while online. Max 2.',
   },
   spikes: {
-    name: 'Spike Trap', icon: '📌', cost: 60, hp: 300, range: 2, dmg: 18, kind: 'spikes', slow: 0.25,
+    name: 'Spike Trap', icon: '📌', cost: 60, max: 3, hp: 300, range: 2, dmg: 18, kind: 'spikes', slow: 0.25,
     dmgType: 'kinetic', h: 0.5, place: 'path',
     desc: 'Route trap: damages and slows anyone crossing it.',
   },
   barricade: {
-    name: 'Barricade', icon: '🧱', cost: 80, hp: 900, range: 0, kind: 'wall',
+    name: 'Barricade', icon: '🧱', cost: 80, max: 3, hp: 900, range: 0, kind: 'wall',
     h: 2.6, place: 'path',
     desc: 'Blocks a route tile until strikers knock it down.',
   },
   mine: {
-    name: 'Proximity Mine', icon: '💥', cost: 90, hp: 120, range: 2.5, dmg: 130, splash: 4.5, kind: 'mine',
+    name: 'Proximity Mine', icon: '💥', cost: 90, max: 3, hp: 120, range: 2.5, dmg: 130, splash: 4.5, kind: 'mine',
     dmgType: 'explosive', h: 0.4, place: 'path',
     desc: 'Hidden route charge. One blast per round.',
   },
@@ -115,10 +116,10 @@ export const TOWER_IDS = Object.keys(TOWERS);
 export const MAX_LEVEL = 3;
 export const LEVEL_MULT = [null,
   { dmg: 1, range: 1, hp: 1, rate: 1 },
-  { dmg: 1.4, range: 1.1, hp: 1.35, rate: 1.1 },
-  { dmg: 1.9, range: 1.2, hp: 1.75, rate: 1.2 },
+  { dmg: 1.55, range: 1.12, hp: 1.5, rate: 1.12 },
+  { dmg: 2.3, range: 1.25, hp: 2.2, rate: 1.25 },
 ];
-export const UPGRADE_COST = [0, 0, 0.75, 1.15]; // fraction of base cost to reach level N
+export const UPGRADE_COST = [0, 0, 0.75, 1.25]; // fraction of base cost to reach level N (each level costs more than the last)
 export const TARGET_MODES = ['first', 'last', 'close', 'strong', 'weak', 'air'];
 export const ASSAULT_BUILD_TIME = 3; // seconds a tower placed mid-assault takes to come online
 
@@ -218,7 +219,7 @@ export const TROOPS = {
   mech:   { name: 'Siege Mech', icon: '🤖', cost: 400, count: 1, hp: 950, speed: 2.6, dps: 24, range: 18, baseDps: 45, desc: 'Slow walker. Wrecks the base.' },
 };
 export const TROOP_IDS = Object.keys(TROOPS);
-export const TROOP_BUY_LIMIT = 2; // purchases of each troop type per striker per round
+export const TROOP_BUY_LIMIT = 6; // purchases of each troop type per striker per round
 
 export const ZONE_TYPES = ['smoke', 'dome', 'cryo', 'airstrike'];
 // Forward checkpoints: stand within `radius` for `time` seconds while no online tower is within `clearRadius`.
@@ -247,6 +248,13 @@ export const POINTS = {
   defCorrect: 10, defSpeed: 5, defKill: 5, defTroopKill: 1, defRoundSurvive: 50,
   strDisable: 20, strBasePer10: 1, strCheckpoint: 15,
 };
+// Difficulty progression: every striker-side unit (players, bots and support troops) gets stronger each round.
+// Round 1 is the baseline; each later round adds these fractions on top of it.
+export const ROUND_BUFF = { hp: 0.08, dmg: 0.06 };
+export function strikerBuff(round) {
+  const r = Math.max(0, round - 1);
+  return { hp: 1 + ROUND_BUFF.hp * r, dmg: 1 + ROUND_BUFF.dmg * r };
+}
 export const DIFFICULTY_MULT = { easy: 1, medium: 1.25, hard: 1.5 };
 
 // Reward scaling with the number of strikers the defender faces.
@@ -254,7 +262,7 @@ export const DIFFICULTY_MULT = { easy: 1, medium: 1.25, hard: 1.5 };
 // Reward multipliers by number of strikers (index = strikers - 1). Tuned with test/balance-report.js so that
 // bot-vs-bot matches land near a 50% defender win rate for every team size.
 export const REWARD_SCALE = {
-  defender: [0.78, 1.28, 1.7, 1.93, 2.2],
+  defender: [0.84, 1.38, 1.82, 2.08, 2.38],
   striker: [1.85, 1.05, 0.84, 0.74, 0.67],
 };
 // Respawn-time multiplier by number of strikers ("lone wolf": small teams get back into the fight faster).

@@ -63,7 +63,8 @@ upgrade (`U`), sell (`Del`), retarget, reboot or overcharge · `1`–`4` answer 
 `C` Overcharge, `V` Emergency Reboot, `F` Fortify Core · `WASD`/arrows or right-drag to pan · wheel zoom · `Q`/`E` rotate · `Esc` cancel.
 
 **Striker (first person):** `WASD` move, `Shift` sprint, `Space` jump, mouse aim, `LMB` fire, `RMB` aim/scope,
-`R` reload, `1`/`2` primary/sidearm (wheel cycles), `3`–`0` gear, `B` shop.
+`R` reload, `1`/`2` primary/sidearm (wheel cycles), `G` throw the selected grenade, `T` switch grenade (frag / EMP / smoke),
+`3`–`0` gear, `B` shop. On touch devices the 💣 button throws and 🔄 switches grenade; tap any gear slot to use it.
 
 **Everyone:** `Enter` chat · `Tab` scoreboard · `M` mute · `H` host panel (host only).
 
@@ -125,6 +126,8 @@ Capital of France?,Paris,Rome,,,A,Geography,medium
 **16 towers** (3 levels each): Sentry Gun, Cannon, Frost Spire, Tesla Coil, Sniper Nest, Flamethrower,
 Mortar, Laser Lance, Missile Pod, Shield Generator, Repair Bay, Radar Array, Gold Mine, plus route traps:
 Spike Trap, Barricade, Proximity Mine. Per-tower targeting: First / Last / Closest / Strongest / Weakest / Air.
+The defender may own at most **2-3 of each tower type** (shown as `n/max` on the card), so the way to get stronger is to
+**upgrade** (up to level 3; each level costs more than the last).
 
 **5 defender abilities:** Airstrike, Cryo Field, Overcharge, Emergency Reboot, Fortify Core.
 
@@ -138,7 +141,10 @@ Stim, Cloak (radar reveals it), Barrier Dome (blocks all tower fire), Scout Dron
 **4 shields:** Light, Reactive (halves splash), Heavy Bulwark, Energy Barrier (resists Tesla/Laser).
 
 **6 support troops:** Grunt Squad, Shield Bearer (taunts towers), Sapper (suicide charge), Combat Drone
-(flying, follows you), Medic Bot, Siege Mech.
+(flying, follows you), Medic Bot, Siege Mech. Each striker can buy up to **6 of each troop type per round**.
+
+**Round buffs:** every striker-side unit (players, bots and troops) automatically gets +8% HP and +6% damage for each
+round after the first, mimicking difficulty progression (announced at the start of each prep phase).
 
 **3 maps:** Serpent Meadow, Riverbend, Windmill Hill: voxel plains with ponds, streams, trees, flowers,
 wandering sheep, drifting clouds and a working windmill.
