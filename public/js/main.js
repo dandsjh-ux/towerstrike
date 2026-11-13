@@ -195,8 +195,11 @@ net.on('kicked', (m) => {
 });
 net.on('over', (m) => { clearMode(); ui.renderResults(m.results, room); ui.show('results'); sfx.play(m.results.winner === 'defender' ? 'correct' : 'explosion'); });
 net.on('lobby', () => { clearMode(); ents.reset(); fx.clear(); lastSnap = null; ui.show('lobby'); if (room) ui.renderLobby(room); });
-net.on('qreport', (m) => ui.renderQReport(m));
-net.on('qpreview', (m) => ui.renderQPreview(m.list));
+net.on('qreport', (m) => {
+  ui.renderQReport(m);
+  if (m.count) ui.toast(`✔ ${m.count} questions now in ${ui.bankLabel(m.round || 0)}${m.errorCount ? ` (${m.errorCount} skipped)` : ''}.`, 'good');
+});
+net.on('qbank', (m) => { document.exitPointerLock?.(); ui.openEditor(m); });
 
 // ------------------------------------------------------------------ global keys
 window.addEventListener('keydown', (e) => {

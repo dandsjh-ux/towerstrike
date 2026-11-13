@@ -104,3 +104,34 @@ export function parseQuestionCSV(text, max = MAX_QUESTIONS) {
 }
 
 export const CSV_TEMPLATE_HEADER = 'question,option_a,option_b,option_c,option_d,answer,category,difficulty';
+
+// Validate a question list coming from the in-browser editor (same rules as CSV rows).
+export function validateQuestions(list, max = MAX_QUESTIONS) {
+  const questions = [], errors = [];
+  if (!Array.isArray(list)) return { questions, errors: ['Not a question list.'] };
+  list.slice(0, max).forEach((q, i) => {
+    const n = i + 1;
+    const text = String((q && q.q) || '').trim().slice(0, 400);
+    if (!text) { errors.push(`Question ${n}: missing text.`); return; }
+    const opts = (Array.isArray(q.options) ? q.options : []).map((o) => String(o ?? '').trim().slice(0, 140));
+    const keep = [], map = [];
+    opts.slice(0, 4).forEach((o, k) => { if (o) { keep.push(o); map.push(k); } });
+    if (keep.length < 2) { errors.push(`Question ${n}: needs at least 2 options.`); return; }
+    const ans = map.indexOf(Number(q.answer));
+    if (ans < 0) { errors.push(`Question ${n}: pick which option is correct.`); return; }
+    const d = String(q.difficulty || 'medium').toLowerCase();
+    questions.push({ q: text, options: keep, answer: ans, category: String(q.category || 'General').trim().slice(0, 40) || 'General', difficulty: ['easy', 'medium', 'hard'].includes(d) ? d : 'medium' });
+  });
+  if (list.length > max) errors.push(`Only the first ${max} questions are kept.`);
+  return { questions, errors };
+}
+
+export function questionsToCSV(questions) {
+  const esc = (s) => (/[",\n]/.test(s) ? `"${String(s).replace(/"/g, '""')}"` : String(s));
+  const lines = [CSV_TEMPLATE_HEADER];
+  for (const q of questions) {
+    const o = [0, 1, 2, 3].map((i) => q.options[i] || '');
+    lines.push([q.q, ...o, 'ABCD'[q.answer], q.category, q.difficulty].map(esc).join(','));
+  }
+  return lines.join('\n') + '\n';
+}

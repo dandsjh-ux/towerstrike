@@ -1,7 +1,7 @@
 // DOM UI: title, lobby, chat, toasts, scoreboard, host panel, results, how-to.
 import { SETTINGS_SCHEMA, BAN_LISTS, PRESETS, TOWERS, WEAPONS, EQUIPMENT, TROOPS, ABILITIES, MAX_PLAYERS, REWARD_SCALE, BASE_HP, BASE_HP_SCALE, RESPAWN_SCALE } from '/shared/defs.js';
 import { MAPS, buildMap, mapBalance } from '/shared/maps.js';
-import { parseQuestionCSV } from '/shared/csv.js';
+import { parseQuestionCSV, validateQuestions, questionsToCSV } from '/shared/csv.js';
 import { escapeHtml as esc } from '/shared/util.js';
 
 export const $ = (id) => document.getElementById(id);
@@ -62,33 +62,125 @@ export class UI {
     $('btn-add-bot-striker').onclick = () => this.net.send({ t: 'addBot', role: 'striker' });
     $('btn-add-bot-defender').onclick = () => this.net.send({ t: 'addBot', role: 'defender' });
     $('btn-start').onclick = () => this.net.send({ t: 'start' });
-    $('btn-reset-q').onclick = () => { this.net.send({ t: 'resetQuestions' }); $('q-report').innerHTML = ''; };
-    $('csv-input').addEventListener('change', (e) => this.uploadCsv(e.target.files[0]));
+    $('csv-input').addEventListener('change', (e) => this.uploadCsv(e.target.files[0], this.csvTarget ?? 0));
     const lobbyChat = $('lobby-chat-input');
     lobbyChat.addEventListener('keydown', (e) => { if (e.key === 'Enter' && lobbyChat.value.trim()) { this.net.send({ t: 'chat', text: lobbyChat.value }); lobbyChat.value = ''; } });
   }
 
-  uploadCsv(file) {
+  // Pick a CSV for a bank. target: 0 main bank, N round N, 'now' current round, 'next' next round.
+  pickCsv(target) { this.csvTarget = target; $('csv-input').value = ''; $('csv-input').click(); }
+  uploadCsv(file, target = 0) {
     if (!file) return;
     if (file.size > 400000) { this.toast('File too large (max ~400 KB).', 'error'); return; }
     const reader = new FileReader();
     reader.onload = () => {
       const text = String(reader.result || '');
       const res = parseQuestionCSV(text);
-      if (!res.questions.length) { this.renderQReport({ count: 0, errors: res.errors, errorCount: res.errorCount, truncated: false, total: res.total }); return; }
-      this.net.send({ t: 'questions', csv: text, name: file.name });
+      if (!res.questions.length) { this.renderQReport({ count: 0, errors: res.errors, errorCount: res.errorCount, truncated: false, total: res.total }); this.toast('No valid questions in that file.', 'error'); return; }
+      this.net.send({ t: 'questions', csv: text, name: file.name.replace(/\.(csv|txt)$/i, ''), target });
     };
     reader.readAsText(file);
-    $('csv-input').value = '';
   }
+  bankLabel(round) { return round ? `round ${round}` : 'the main bank'; }
   renderQReport(r) {
-    let h = r.count ? `<div class="ok">✔ Loaded ${r.count} question${r.count === 1 ? '' : 's'}.</div>` : '<div class="warn">No valid questions found.</div>';
+    let h = r.count ? `<div class="ok">✔ Loaded ${r.count} question${r.count === 1 ? '' : 's'} into ${this.bankLabel(r.round || 0)}.</div>` : '<div class="warn">No valid questions found.</div>';
     if (r.truncated) h += `<div class="warn">File had ${r.total} valid questions. Only the first 100 are used.</div>`;
     if (r.errors && r.errors.length) h += `<div class="warn">${r.errorCount} row(s) skipped:</div><ul>${r.errors.slice(0, 8).map((e) => `<li>${esc(e)}</li>`).join('')}</ul>`;
     $('q-report').innerHTML = h;
   }
-  renderQPreview(list) {
-    $('q-preview').innerHTML = list.length ? list.map((q, i) => `<div>${i + 1}. ${esc(q.q)} <span class="muted">· ${esc(q.category)} · ${q.difficulty}</span></div>`).join('') : '';
+  // Main bank + one row per round. Used in the lobby and (compact) in the in-game host panel.
+  banksHtml(q, rounds, host, current = 0) {
+    const byRound = new Map((q.rounds || []).map((r) => [r.round, r]));
+    const main = `<div class="bank main"><div class="bank-name">📚 Main bank: <b>${q.count}</b> questions · ${esc(q.name)}<div class="muted small">${(q.categories || []).map(esc).join(' · ')}</div></div>
+      ${host ? `<div class="bank-acts"><button class="btn tiny" data-up="0">Upload CSV</button><button class="btn tiny" data-edit="0">Edit</button>${q.source === 'custom' ? '<button class="btn tiny ghost" data-reset="0" title="Back to the built-in quiz">Built-in</button>' : ''}</div>` : ''}</div>`;
+    let rows = '';
+    for (let r = 1; r <= rounds; r++) {
+      const b = byRound.get(r);
+      rows += `<div class="bank ${r === current ? 'live' : ''}"><div class="bank-name"><span class="rd">R${r}${r === current ? ' ▶' : ''}</span> ${b ? `<b>${b.count}</b> · ${esc(b.name)}` : '<span class="muted">main bank</span>'}</div>
+        ${host ? `<div class="bank-acts"><button class="btn tiny" data-up="${r}">Upload</button><button class="btn tiny" data-edit="${r}">Edit</button>${b ? `<button class="btn tiny ghost" data-reset="${r}" title="Use the main bank">✕</button>` : ''}</div>` : ''}</div>`;
+    }
+    return main + `<div class="bank-sub muted small">Per-round banks (optional)</div>` + rows;
+  }
+  bindBanks(root) {
+    root.querySelectorAll('[data-up]').forEach((el) => el.onclick = () => this.pickCsv(Number(el.dataset.up)));
+    root.querySelectorAll('[data-edit]').forEach((el) => el.onclick = () => this.net.send({ t: 'getQuestions', target: Number(el.dataset.edit) }));
+    root.querySelectorAll('[data-reset]').forEach((el) => el.onclick = () => this.net.send({ t: 'resetQuestions', target: Number(el.dataset.reset) }));
+  }
+
+  // ------------------------------------------------------------------ question editor
+  openEditor(m) {
+    const pad = (o) => [0, 1, 2, 3].map((i) => o[i] ?? '');
+    this.ed = { round: m.round, name: m.name, list: m.questions.map((q) => ({ q: q.q, options: pad(q.options), answer: q.answer, category: q.category, difficulty: q.difficulty })) };
+    if (!this.ed.list.length) this.ed.list.push(this.blankQ());
+    this.renderEditor();
+  }
+  blankQ() { return { q: '', options: ['', '', '', ''], answer: 0, category: 'General', difficulty: 'medium' }; }
+  renderEditor() {
+    const ed = this.ed;
+    const qs = ed.list.map((q, i) => `<div class="ed-q" data-i="${i}">
+      <div class="ed-row"><b class="ed-n">${i + 1}</b><textarea class="ed-text" data-f="q" rows="2" maxlength="400" placeholder="Question text">${esc(q.q)}</textarea>
+        <button class="btn tiny danger" data-del="${i}" title="Delete question">✕</button></div>
+      <div class="ed-opts">${q.options.map((o, k) => `<label class="ed-opt ${q.answer === k ? 'right' : ''}"><input type="radio" name="ans${i}" data-f="answer" value="${k}" ${q.answer === k ? 'checked' : ''} title="Correct answer"><span>${'ABCD'[k]}</span><input data-f="opt" data-k="${k}" maxlength="140" value="${esc(o)}" placeholder="${k < 2 ? 'Option' : 'Optional'}"></label>`).join('')}</div>
+      <div class="ed-row small"><input data-f="category" maxlength="40" value="${esc(q.category)}" placeholder="Category"><select data-f="difficulty">${['easy', 'medium', 'hard'].map((d) => `<option ${q.difficulty === d ? 'selected' : ''}>${d}</option>`).join('')}</select></div>
+    </div>`).join('');
+    this.modal(`<h2>Edit questions · ${ed.round ? `Round ${ed.round}` : 'Main bank'}</h2>
+      <div class="ed-bar"><input id="ed-name" maxlength="60" value="${esc(ed.name)}" placeholder="Bank name"><span class="muted" id="ed-count">${ed.list.length}/100</span>
+        <button class="btn small" id="ed-add">+ Question</button><button class="btn small" id="ed-import">Import CSV</button><button class="btn small" id="ed-export">Export CSV</button>
+        <button class="btn small primary" id="ed-save">Save & use</button></div>
+      <p class="muted small">Tick the circle next to the correct answer. Options C and D are optional. ${ed.round ? `Saved questions are used in round ${ed.round}${this.liveRound === ed.round ? ' starting with the next question' : ''}.` : 'The main bank is used in every round without its own bank.'}</p>
+      <div id="ed-errors" class="q-report"></div><div class="ed-list">${qs}</div>
+      <input id="ed-file" type="file" accept=".csv,text/csv,.txt" hidden>`);
+    const body = $('modal-body');
+    body.querySelector('.ed-list').addEventListener('input', (e) => this.editorInput(e));
+    body.querySelector('.ed-list').addEventListener('change', (e) => this.editorInput(e));
+    body.querySelectorAll('[data-del]').forEach((el) => el.onclick = () => { this.syncEditor(); ed.list.splice(Number(el.dataset.del), 1); if (!ed.list.length) ed.list.push(this.blankQ()); this.renderEditor(); });
+    $('ed-name').oninput = (e) => { ed.name = e.target.value; };
+    $('ed-add').onclick = () => {
+      if (ed.list.length >= 100) { this.toast('Max 100 questions per bank.', 'error'); return; }
+      ed.list.push(this.blankQ()); this.renderEditor();
+      const last = $('modal-body').querySelector('.ed-q:last-child .ed-text'); last?.focus(); last?.scrollIntoView({ block: 'center' });
+    };
+    $('ed-import').onclick = () => $('ed-file').click();
+    $('ed-file').onchange = (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      const rd = new FileReader();
+      rd.onload = () => {
+        const res = parseQuestionCSV(String(rd.result || ''));
+        if (!res.questions.length) { this.toast('No valid questions in that file.', 'error'); return; }
+        const blank = ed.list.length === 1 && !ed.list[0].q;
+        if (blank) ed.list = [];
+        for (const q of res.questions) if (ed.list.length < 100) ed.list.push({ ...q, options: [0, 1, 2, 3].map((i) => q.options[i] ?? '') });
+        this.toast(`Added ${res.questions.length} questions${res.errorCount ? ` (${res.errorCount} rows skipped)` : ''}.`, 'good');
+        this.renderEditor();
+      };
+      rd.readAsText(f);
+    };
+    $('ed-export').onclick = () => {
+      const { questions } = validateQuestions(ed.list);
+      if (!questions.length) { this.toast('Nothing complete to export yet.', 'error'); return; }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([questionsToCSV(questions)], { type: 'text/csv' }));
+      a.download = `${(ed.name || 'questions').replace(/[^\w\- ]/g, '') || 'questions'}.csv`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    };
+    $('ed-save').onclick = () => {
+      const { questions, errors } = validateQuestions(ed.list);
+      const box = $('ed-errors');
+      if (errors.length) { box.innerHTML = `<ul>${errors.slice(0, 8).map((e) => `<li>${esc(e)}</li>`).join('')}</ul>`; if (!questions.length || !confirm(`${errors.length} question(s) are incomplete and will be skipped. Save the other ${questions.length}?`)) return; }
+      this.net.send({ t: 'setQuestions', target: ed.round, name: ed.name || 'My questions', questions: ed.list });
+      this.closeModal();
+    };
+  }
+  syncEditor() {} // inputs write straight into this.ed (see editorInput)
+  editorInput(e) {
+    const card = e.target.closest('.ed-q'); if (!card) return;
+    const q = this.ed.list[Number(card.dataset.i)]; const f = e.target.dataset.f;
+    if (f === 'q') q.q = e.target.value;
+    else if (f === 'opt') q.options[Number(e.target.dataset.k)] = e.target.value;
+    else if (f === 'answer') { q.answer = Number(e.target.value); card.querySelectorAll('.ed-opt').forEach((l, k) => l.classList.toggle('right', k === q.answer)); }
+    else if (f === 'category') q.category = e.target.value;
+    else if (f === 'difficulty') q.difficulty = e.target.value;
   }
 
   // ------------------------------------------------------------------ lobby
@@ -128,8 +220,8 @@ export class UI {
     const hp = Math.round(BASE_HP * BASE_HP_SCALE[n - 1] * s.baseHpMult * mb.hp);
     $('scaling-info').innerHTML = `<b>Reward scaling for ${n} striker${n > 1 ? 's' : ''}</b>: defender ×${(df * s.defenderRewardMult).toFixed(2)} rewards, each striker ×${(sf * s.strikerRewardMult).toFixed(2)}. Core HP ≈ <b>${hp.toLocaleString()}</b>${s.coreBreachCap ? `, lockdown after ${s.coreBreachCap}%/round` : ''}. Respawn ×${RESPAWN_SCALE[n - 1]}.`;
     this.renderSettings(room.settings, host);
-    const q = room.qInfo;
-    $('q-info').innerHTML = `<b>${q.count}</b> questions · ${esc(q.name)}<br><span class="muted small">${(q.categories || []).map(esc).join(' · ')}</span>`;
+    $('q-banks').innerHTML = this.banksHtml(room.qInfo, room.settings.rounds, host);
+    this.bindBanks($('q-banks'));
   }
 
   renderSettings(s, host) {
@@ -259,6 +351,9 @@ export class UI {
         <button class="btn small danger" data-cmd="end">End match</button>
         <button class="btn small danger" data-cmd="lobby">Back to lobby</button>
       </div>
+      <h3>Question bank · round ${snap ? snap.rd : 1}</h3>
+      <div class="grid2"><button class="btn small" data-qnow>📤 CSV → this round</button><button class="btn small" data-qnext>📤 CSV → next round</button></div>
+      <div class="hp-banks">${this.banksHtml(room.qInfo, room.settings.rounds, true, snap ? snap.rd : 0)}</div>
       <h3>Players & roles</h3>${players}
       <div class="row gap" style="margin-top:8px"><button class="btn tiny" data-addbot>+ Bot striker</button></div>
       <h3>Audio</h3><input type="range" min="0" max="1" step="0.05" value="${this.sfx.volume}" data-vol style="width:100%">`;
@@ -275,6 +370,10 @@ export class UI {
     hp.querySelector('[data-addbot]').onclick = () => this.net.send({ t: 'addBot', role: 'striker' });
     hp.querySelector('[data-vol]').oninput = (e) => this.sfx.setVolume(Number(e.target.value));
     hp.querySelector('[data-settings]').onclick = () => this.liveSettings();
+    hp.querySelector('[data-qnow]').onclick = () => this.pickCsv('now');
+    hp.querySelector('[data-qnext]').onclick = () => this.pickCsv('next');
+    this.liveRound = snap ? snap.rd : 0;
+    this.bindBanks(hp.querySelector('.hp-banks'));
   }
   liveSettings() {
     const locked = new Set(['mapId', 'checkpoints', 'baseHpMult', 'defenderStartCoins', 'strikerStartCoins', 'strikerHpMult']);

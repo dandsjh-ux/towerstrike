@@ -2,7 +2,7 @@
 import crypto from 'node:crypto';
 import { Game } from './game.js';
 import { defaultSettings, sanitizeSettings, MAX_PLAYERS, TICK_RATE, SNAP_EVERY, PRESETS, MAX_QUESTIONS, SETTINGS_SCHEMA } from '../shared/defs.js';
-import { parseQuestionCSV } from '../shared/csv.js';
+import { parseQuestionCSV, validateQuestions } from '../shared/csv.js';
 import { DEFAULT_QUESTIONS } from './questions.js';
 
 // Settings that can't change once a match has started.
@@ -15,8 +15,9 @@ export class Room {
     this.players = new Map();
     this.hostId = null;
     this.settings = defaultSettings();
-    this.questions = null;
-    this.qInfo = { source: 'default', name: 'Built-in quiz (general knowledge)', count: DEFAULT_QUESTIONS.length, categories: [...new Set(DEFAULT_QUESTIONS.map((q) => q.category))] };
+    this.questions = null;          // main bank (null = built-in quiz)
+    this.bankName = 'Built-in quiz (general knowledge)';
+    this.roundBanks = new Map();    // round -> { name, questions }: optional per-round banks
     this.state = 'lobby';
     this.game = null;
     this.timer = null;
@@ -153,7 +154,7 @@ export class Room {
     return {
       t: 'room', code: this.code, hostId: this.hostId, state: this.state,
       players: [...this.players.values()].map((p) => ({ id: p.id, name: p.name, role: p.role, isBot: p.isBot, connected: p.connected })),
-      settings: this.settings, qInfo: this.qInfo, maxPlayers: MAX_PLAYERS,
+      settings: this.settings, qInfo: this.qInfo(), maxPlayers: MAX_PLAYERS,
       paused: this.game ? this.game.paused : false,
     };
   }
@@ -169,11 +170,46 @@ export class Room {
       if (q) this.send(p, { t: 'p', e: [q] });
     }
     if (this.state === 'results' && this.results) this.send(p, { t: 'over', results: this.results });
-    if (p.id === this.hostId && this.questions) this.send(p, { t: 'qpreview', list: this.questionPreview() });
   }
-  questionPreview() {
-    return (this.questions || []).map((q) => ({ q: q.q, n: q.options.length, category: q.category, difficulty: q.difficulty }));
+
+  // ------------------------------------------------------------------ question banks
+  qInfo() {
+    const list = this.questions || DEFAULT_QUESTIONS;
+    return {
+      source: this.questions ? 'custom' : 'default', name: this.bankName, count: list.length,
+      categories: [...new Set(list.map((q) => q.category))].slice(0, 12),
+      rounds: [...this.roundBanks].sort((a, b) => a[0] - b[0]).map(([round, b]) => ({ round, name: b.name, count: b.questions.length })),
+      current: this.game && this.state === 'game' ? this.game.round : 0,
+    };
   }
+  bankFor(round) { const rb = this.roundBanks.get(round); return rb ? rb.questions : this.questions; }
+  // target: 0 = main bank, N = round N, 'now' = current round (live from the next question), 'next' = next round
+  resolveTarget(target) {
+    const live = this.game && this.state === 'game';
+    if (target === 'now') return live ? this.game.round : 1;
+    if (target === 'next') return live ? this.game.round + 1 : 1;
+    const n = Math.round(Number(target) || 0);
+    return Math.max(0, Math.min(10, n));
+  }
+  setBank(target, questions, name) {
+    const round = this.resolveTarget(target);
+    const label = String(name || 'Custom questions').replace(/[^\p{L}\p{N} .\-()_]/gu, '').slice(0, 60) || 'Custom questions';
+    if (round === 0) {
+      this.questions = questions;
+      this.bankName = questions ? label : 'Built-in quiz (general knowledge)';
+    } else if (questions) this.roundBanks.set(round, { name: label, questions });
+    else this.roundBanks.delete(round);
+    const g = this.state === 'game' ? this.game : null;
+    const live = !!g && (round === g.round || (round === 0 && !this.roundBanks.has(g.round)));
+    if (live) g.setDeck(this.bankFor(g.round));
+    const where = round === 0 ? 'the main question bank' : `round ${round}`;
+    if (questions) this.sysChat(`📚 Host loaded ${questions.length} questions ("${label}") for ${where}${live ? ', live from the next question' : ''}.`);
+    else this.sysChat(`📚 ${round === 0 ? 'Main bank reset to the built-in quiz' : `Round ${round} now uses the main bank`}.`);
+    this.broadcastLobby();
+    return round;
+  }
+  // A host who is also the defender must not open the answer key mid-match.
+  canSeeAnswers(p) { return !(this.state === 'game' && this.game && this.game.isDefender(p.id)); }
 
   // ------------------------------------------------------------------ message handling
   handle(p, m) {
@@ -221,28 +257,36 @@ export class Room {
         if (t && !t.isBot && t.connected) { this.hostId = t.id; this.sysChat(`${t.name} is now the host.`); this.broadcastLobby(); }
         return;
       }
-      case 'questions': {
+      case 'questions': { // CSV upload any time (lobby or mid-match) for the main bank or a specific round
         if (!isHost) return err('Only the host can upload questions.');
-        if (this.state === 'game') return err('Upload questions between matches.');
         const csv = String(m.csv || '');
         if (csv.length > 400000) return err('File too large (max ~400 KB).');
         const res = parseQuestionCSV(csv, MAX_QUESTIONS);
-        this.send(p, { t: 'qreport', count: res.questions.length, errors: res.errors, errorCount: res.errorCount, truncated: res.truncated, total: res.total });
-        if (!res.questions.length) return;
-        this.questions = res.questions;
-        const name = String(m.name || 'Custom questions').replace(/[^\w .\-()]/g, '').slice(0, 60) || 'Custom questions';
-        this.qInfo = { source: 'custom', name, count: res.questions.length, categories: [...new Set(res.questions.map((q) => q.category))].slice(0, 12) };
-        this.sysChat(`Host loaded ${res.questions.length} questions from "${name}".`);
-        this.send(p, { t: 'qpreview', list: this.questionPreview() });
-        this.broadcastLobby();
+        const round = res.questions.length ? this.setBank(m.target ?? 0, res.questions, m.name) : this.resolveTarget(m.target ?? 0);
+        this.send(p, { t: 'qreport', round, count: res.questions.length, errors: res.errors, errorCount: res.errorCount, truncated: res.truncated, total: res.total });
         return;
       }
-      case 'resetQuestions': {
-        if (!isHost || this.state === 'game') return;
-        this.questions = null;
-        this.qInfo = { source: 'default', name: 'Built-in quiz (general knowledge)', count: DEFAULT_QUESTIONS.length, categories: [...new Set(DEFAULT_QUESTIONS.map((q) => q.category))] };
-        this.send(p, { t: 'qpreview', list: [] });
-        this.broadcastLobby();
+      case 'setQuestions': { // saved from the in-browser editor
+        if (!isHost) return err('Only the host can edit questions.');
+        const res = validateQuestions(m.questions);
+        if (!res.questions.length) return err(res.errors[0] || 'Add at least one complete question.');
+        const round = this.setBank(m.target ?? 0, res.questions, m.name);
+        this.send(p, { t: 'qreport', round, count: res.questions.length, errors: res.errors, errorCount: res.errors.length, truncated: false, total: res.questions.length });
+        return;
+      }
+      case 'resetQuestions': { // target 0: back to the built-in quiz; target N: round N falls back to the main bank
+        if (!isHost) return;
+        this.setBank(m.target ?? 0, null);
+        return;
+      }
+      case 'getQuestions': { // full bank (with answers) for the host's editor
+        if (!isHost) return err('Only the host can view the answer key.');
+        if (!this.canSeeAnswers(p)) return err('You are the defender: the answer key stays hidden during the match.');
+        const round = this.resolveTarget(m.target ?? 0);
+        const rb = round ? this.roundBanks.get(round) : null;
+        const list = rb ? rb.questions : round ? null : this.questions;
+        const name = rb ? rb.name : round ? `Round ${round} questions` : this.questions ? this.bankName : 'My questions';
+        this.send(p, { t: 'qbank', round, name, questions: list || this.questions || DEFAULT_QUESTIONS });
         return;
       }
       case 'start': {
@@ -364,7 +408,7 @@ export class Room {
     const strs = list.filter((x) => x.role === 'striker');
     if (defs.length !== 1) return this.send(p, { t: 'error', msg: 'Assign exactly one Defender (a player or a bot).' });
     if (strs.length < 1) return this.send(p, { t: 'error', msg: 'Assign at least one Striker (a player or a bot).' });
-    this.game = new Game({ settings: this.settings, players: list.map((x) => ({ id: x.id, name: x.name, role: x.role, isBot: x.isBot })), questions: this.questions });
+    this.game = new Game({ settings: this.settings, players: list.map((x) => ({ id: x.id, name: x.name, role: x.role, isBot: x.isBot })), questions: this.bankFor(1), questionsForRound: (r) => this.bankFor(r) });
     this.state = 'game';
     this.results = null;
     this.broadcast(this.startMsg());

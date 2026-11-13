@@ -326,3 +326,31 @@ body[data-role="defender"] .killfeed { top: 74px; right: auto; left: 262px; alig
 body[data-role="striker"] .chat-box { bottom: 130px; }
 
 .chat-box .chat-log { overflow: hidden; }
+
+/* question banks & editor */
+.q-banks { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.bank { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.04); font-size: 0.88em; }
+.bank.main { background: rgba(0, 0, 0, 0.25); padding: 9px 10px; }
+.bank.live { border: 1px solid var(--gold); }
+.bank .rd { display: inline-block; min-width: 34px; color: var(--gold); font-weight: 700; }
+.bank-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.bank-acts { display: flex; gap: 4px; flex-shrink: 0; }
+.bank-sub { margin: 6px 2px 0; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.72em; }
+.hp-banks { margin-top: 6px; font-size: 0.9em; }
+.ed-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ed-bar #ed-name { flex: 1; min-width: 160px; }
+.ed-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.ed-q { background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+.ed-row { display: flex; gap: 8px; align-items: flex-start; }
+.ed-row.small { margin-top: 6px; }
+.ed-row.small input { flex: 1; padding: 5px 8px; }
+.ed-row.small select { padding: 5px 8px; }
+.ed-n { color: var(--gold); min-width: 22px; padding-top: 6px; }
+.ed-text { flex: 1; resize: vertical; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 6px 8px; font: inherit; }
+.ed-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; padding-left: 30px; }
+.ed-opt { display: flex; align-items: center; gap: 6px; border-radius: 8px; padding: 2px 4px; border: 1px solid transparent; }
+.ed-opt.right { border-color: var(--good); background: rgba(94, 224, 122, 0.12); }
+.ed-opt span { color: var(--muted); font-weight: 700; width: 12px; }
+.ed-opt input[type=radio] { accent-color: var(--good); width: 16px; height: 16px; }
+.ed-opt input[data-f=opt] { flex: 1; min-width: 0; padding: 5px 8px; }
+@media (max-width: 640px) { .ed-opts { grid-template-columns: 1fr; padding-left: 0; } }

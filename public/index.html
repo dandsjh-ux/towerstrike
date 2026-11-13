@@ -66,15 +66,10 @@
       </div>
       <div class="panel lobby-questions">
         <h2>Question bank</h2>
-        <div id="q-info" class="q-info"></div>
-        <div class="row gap wrap host-only">
-          <label class="btn small file-btn">Upload CSV<input id="csv-input" type="file" accept=".csv,text/csv,.txt"></label>
-          <a class="btn small ghost" href="/sample-questions.csv" download>Download template</a>
-          <button id="btn-reset-q" class="btn small ghost">Use built-in quiz</button>
-        </div>
-        <p class="muted small">Up to 100 questions. Columns: <code>question, option_a, option_b, option_c, option_d, answer, category, difficulty</code>. Answer can be A–D, 1–4 or the option text. Options C/D are optional.</p>
+        <div id="q-banks" class="q-banks"></div>
+        <p class="muted small">Up to 100 questions per bank. CSV columns: <code>question, option_a, option_b, option_c, option_d, answer, category, difficulty</code>. Answer can be A–D, 1–4 or the option text; options C/D are optional. <a href="/sample-questions.csv" download>Download template</a>. Each round can have its own bank; rounds without one use the main bank. You can also upload or edit banks mid-match from the host panel (H).</p>
         <div id="q-report" class="q-report"></div>
-        <div id="q-preview" class="q-preview host-only"></div>
+        <input id="csv-input" type="file" accept=".csv,text/csv,.txt" hidden>
         <h3>Chat</h3>
         <div id="lobby-chat" class="chat-log"></div>
         <input id="lobby-chat-input" class="chat-input" maxlength="200" placeholder="Say something… (Enter)">

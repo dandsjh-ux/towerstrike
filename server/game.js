@@ -13,7 +13,7 @@ const SUPPORT_KINDS = new Set(['shieldgen', 'repair', 'radar', 'eco', 'wall']);
 const r1 = round1, r2 = round2;
 
 export class Game {
-  constructor({ settings, players, questions, seed }) {
+  constructor({ settings, players, questions, seed, questionsForRound = null }) {
     this.s = settings;
     this.map = buildMap(settings.mapId);
     this.seed = seed ?? ((Date.now() * 2654435761) >>> 0);
@@ -27,7 +27,8 @@ export class Game {
     this.projs = new Map(); this.zones = new Map();
     this.strikers = new Map(); this.benched = new Map();
     this.defender = null; this.botDef = null; this.bots = new Map();
-    this.deck = new QuestionDeck(questions, this.rng, settings.shuffleOptions);
+    this.questionsForRound = questionsForRound; // (round) => question list for that round (null = built-in)
+    this.setDeck(questions);
     this.checkpoints = settings.checkpoints ? this.map.checkpoints.map((c) => ({ ...c, captured: false, cap: 0 })) : [];
     this.scoutUntil = 0;
     this.over = false; this.winner = null;
@@ -130,8 +131,14 @@ export class Game {
   clearDefender() { if (this.defender) { this.defender.id = -1; this.defender.q = null; } this.botDef = null; }
 
   // ------------------------------------------------------------------ phases
+  // Swap the question bank. The question on screen finishes normally; the next one comes from the new bank.
+  setDeck(questions) {
+    this.deckSrc = questions;
+    this.deck = new QuestionDeck(questions, this.rng, this.s.shuffleOptions);
+  }
   startPrep() {
     this.round++;
+    if (this.questionsForRound) { const q = this.questionsForRound(this.round); if (q !== this.deckSrc) this.setDeck(q); }
     this.phase = 'prep';
     this.timer = this.s.prepTime;
     this.updateFactors();

@@ -12,7 +12,7 @@ round; the core never regenerates.
 ```bash
 npm install
 npm start          # http://localhost:3000
-npm test           # 41 tests: rules, maps, CSV, real WebSocket match, balance regression
+npm test           # 43 tests: rules, maps, CSV, real WebSocket match, balance regression
 npm run balance    # full bot-vs-bot balance report (all maps × 1-5 strikers)
 ```
 
@@ -70,11 +70,11 @@ upgrade (`U`), sell (`Del`), retarget, reboot or overcharge · `1`–`4` answer 
 ## Host controls
 
 **Lobby:** assign roles (Defender / Striker / Spectator), add or remove bots, kick, transfer host, presets
-(Casual / Standard / Hardcore), 24 match settings, ban any tower, weapon, gear, troop or ability, and upload a question bank.
+(Casual / Standard / Hardcore), 24 match settings, ban any tower, weapon, gear, troop or ability, and upload or edit question banks (main + per round).
 
 **In-match host panel (`H`):** pause/resume, skip phase, ±30 s, core HP ±10%, grant or remove coins per player,
 reassign roles live (swap the defender, promote spectators, add bot strikers), hand the defence to a bot,
-edit live settings, end the match, or return everyone to the lobby.
+upload or edit the question bank for this or the next round, edit live settings, end the match, or return everyone to the lobby.
 
 Settings include: map, rounds, prep/assault length, core HP multiplier, lockdown %, start coins, reward
 multipliers, reward scaling on/off, sell refund, tower cap, seconds per question, wrong-answer lockout,
@@ -92,7 +92,19 @@ checkpoints on/off, and bot skill.
 - Each browser tab is a separate player. If the same seat is opened elsewhere, the old window stops and offers
   "Play here instead" (no tug-of-war between tabs).
 
-## Question bank (CSV, up to 100)
+## Question banks (fully customisable, CSV or in-browser editor)
+
+The host (teacher) controls exactly which questions the defender gets, round by round:
+
+- **Main bank:** used for every round that has no bank of its own. Starts as the 52-question built-in quiz.
+- **Per-round banks:** give any round its own set (e.g. Round 1 = times tables, Round 2 = fractions). Rounds switch
+  bank automatically when their prep phase starts.
+- **Upload any time:** in the lobby (per bank), or mid-match from the host panel (`H`) with **CSV → this round**
+  (live from the very next question) or **CSV → next round**.
+- **Editor:** every bank has an **Edit** button: change question text, options (2–4), the correct answer,
+  category and difficulty; add or delete questions; import a CSV into it; export it as CSV; **Save & use**.
+- Up to 100 questions per bank. A host who is also the defender can still upload, but can't open the answer
+  key mid-match.
 
 Download the template from the lobby (`/sample-questions.csv`; it contains the 52 built-in questions).
 
