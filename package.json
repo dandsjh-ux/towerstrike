@@ -1,0 +1,21 @@
+{
+  "name": "towerstrike",
+  "version": "1.0.0",
+  "description": "TowerStrike - a multiplayer voxel Tower Defense / FPS mashup built with three.js",
+  "type": "module",
+  "main": "server/index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test \"test/*.test.js\"",
+    "balance": "node test/balance-report.js"
+  },
+  "dependencies": {
+    "three": "0.170.0",
+    "ws": "8.23.0"
+  },
+  "license": "MIT"
+}

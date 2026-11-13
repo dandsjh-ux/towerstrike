@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>TowerStrike</title>
+  <meta name="description" content="TowerStrike: a multiplayer voxel tower-defense / FPS mashup.">
+  <meta name="theme-color" content="#1b2a1a">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='6' width='10' height='10' fill='%234aa8ff'/%3E%3Crect x='5' y='1' width='6' height='6' fill='%23ff8a3d'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Russo+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script type="importmap">{ "imports": { "three": "/vendor/three/three.module.js" } }</script>
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <div id="loading" class="loading"><div class="logo-small">TOWER<span>STRIKE</span></div><div class="spinner"></div><div id="loading-text">Loading…</div></div>
+
+  <!-- Title -->
+  <section id="title-screen" class="screen hidden">
+    <div class="title-card panel">
+      <h1 class="logo">TOWER<span>STRIKE</span></h1>
+      <p class="tagline">One defender commands the towers. Up to five strikers storm the route. Answer to build, aim to break through.</p>
+      <label class="field"><span>Your name</span><input id="name-input" maxlength="16" placeholder="e.g. Nova" autocomplete="off"></label>
+      <div class="title-actions">
+        <button id="btn-create" class="btn primary big">Create Game</button>
+        <div class="join-row">
+          <input id="code-input" maxlength="6" placeholder="CODE" autocomplete="off">
+          <button id="btn-join" class="btn big">Join</button>
+        </div>
+      </div>
+      <button id="btn-howto" class="btn ghost">How to play</button>
+      <p id="title-error" class="error-text"></p>
+    </div>
+  </section>
+
+  <!-- Lobby -->
+  <section id="lobby-screen" class="screen hidden">
+    <header class="lobby-head panel">
+      <div class="logo-small">TOWER<span>STRIKE</span></div>
+      <div class="room-code-wrap">Room <span id="room-code" class="room-code">----</span>
+        <button id="btn-copy-link" class="btn small">Copy invite link</button></div>
+      <div class="lobby-head-actions"><button id="btn-howto2" class="btn small ghost">How to play</button><button id="btn-leave" class="btn small danger">Leave</button></div>
+    </header>
+    <div class="lobby-grid">
+      <div class="panel lobby-players">
+        <h2>Players <span id="player-count" class="muted"></span></h2>
+        <div id="player-list"></div>
+        <div id="bot-actions" class="row gap host-only">
+          <button id="btn-add-bot-striker" class="btn small">+ Bot Striker</button>
+          <button id="btn-add-bot-defender" class="btn small">+ Bot Defender</button>
+        </div>
+        <div id="scaling-info" class="scaling-info"></div>
+        <div class="start-wrap">
+          <p id="start-status" class="muted"></p>
+          <button id="btn-start" class="btn primary big host-only">Start Match</button>
+          <p id="wait-host" class="muted guest-only">Waiting for the host to start…</p>
+        </div>
+      </div>
+      <div class="panel lobby-settings">
+        <h2>Match settings <span class="muted guest-only">(host controls)</span></h2>
+        <div id="preset-row" class="row gap host-only"></div>
+        <div id="settings-form" class="settings-form"></div>
+        <details class="arsenal"><summary>Arsenal: allow / ban items</summary><div id="ban-form"></div></details>
+      </div>
+      <div class="panel lobby-questions">
+        <h2>Question bank</h2>
+        <div id="q-info" class="q-info"></div>
+        <div class="row gap wrap host-only">
+          <label class="btn small file-btn">Upload CSV<input id="csv-input" type="file" accept=".csv,text/csv,.txt"></label>
+          <a class="btn small ghost" href="/sample-questions.csv" download>Download template</a>
+          <button id="btn-reset-q" class="btn small ghost">Use built-in quiz</button>
+        </div>
+        <p class="muted small">Up to 100 questions. Columns: <code>question, option_a, option_b, option_c, option_d, answer, category, difficulty</code>. Answer can be A–D, 1–4 or the option text. Options C/D are optional.</p>
+        <div id="q-report" class="q-report"></div>
+        <div id="q-preview" class="q-preview host-only"></div>
+        <h3>Chat</h3>
+        <div id="lobby-chat" class="chat-log"></div>
+        <input id="lobby-chat-input" class="chat-input" maxlength="200" placeholder="Say something… (Enter)">
+      </div>
+    </div>
+  </section>
+
+  <!-- In-game HUD -->
+  <section id="game-hud" class="hidden">
+    <div id="topbar" class="topbar">
+      <div class="tb-round"><span id="tb-round">Round 1/5</span><span id="tb-phase" class="phase-pill">PREP</span></div>
+      <div class="tb-timer" id="tb-timer">1:00</div>
+      <div class="tb-base"><div class="base-label">CORE <span id="tb-base-num"></span><span id="tb-lock" class="lock-pill hidden">🔒 LOCKDOWN</span></div><div class="bar base-bar"><div id="tb-base-fill" class="fill"></div><div id="tb-base-round" class="round-cap"></div></div></div>
+    </div>
+    <div id="killfeed" class="killfeed"></div>
+    <div id="banner" class="banner hidden"></div>
+    <div id="center-msg" class="center-msg"></div>
+    <div id="chat-box" class="chat-box"><div id="chat-log" class="chat-log"></div><input id="chat-input" class="chat-input hidden" maxlength="200" placeholder="Chat… (Enter to send, Esc to cancel)"></div>
+    <div id="float-layer" class="float-layer"></div>
+    <div id="hud-hint" class="hud-hint"></div>
+    <button id="btn-host-panel" class="btn small host-only host-fab">Host ☰ (H)</button>
+
+    <!-- Defender -->
+    <div id="def-hud" class="role-hud hidden">
+      <div class="def-wallet panel"><div class="coins">💰 <span id="def-coins">0</span></div><div class="pts">★ <span id="def-points">0</span></div><div class="mult" id="def-mult"></div></div>
+      <div id="palette" class="palette panel"></div>
+      <div id="tower-panel" class="tower-panel panel hidden"></div>
+      <div id="abilities" class="abilities"></div>
+      <div id="question-card" class="question-card panel"></div>
+    </div>
+
+    <!-- Striker -->
+    <div id="str-hud" class="role-hud hidden">
+      <div id="crosshair" class="crosshair"><i></i><i></i><i></i><i></i></div>
+      <div id="hitmarker" class="hitmarker"></div>
+      <div id="scope" class="scope hidden"></div>
+      <div id="dmg-dir" class="dmg-dir"></div>
+      <div class="str-vitals panel">
+        <div class="vital"><span>SHIELD</span><div class="bar"><div id="str-shield" class="fill shield"></div></div><b id="str-shield-num">0</b></div>
+        <div class="vital"><span>HEALTH</span><div class="bar"><div id="str-hp" class="fill hp"></div></div><b id="str-hp-num">100</b></div>
+        <div id="str-status" class="status-icons"></div>
+      </div>
+      <div class="str-wallet panel"><div class="coins">💰 <span id="str-coins">0</span></div><div class="pts">★ <span id="str-points">0</span></div><div id="str-shop-hint" class="muted small"></div></div>
+      <div class="str-weapon panel"><div id="str-wname">Sidearm</div><div class="ammo"><b id="str-mag">12</b>/<span id="str-magmax">12</span></div><div id="str-reload" class="reload-bar"><div></div></div><div id="str-slots" class="slots"></div></div>
+      <div id="equip-bar" class="equip-bar"></div>
+      <canvas id="minimap" class="minimap" width="220" height="220"></canvas>
+      <div id="objective" class="objective"></div>
+      <div id="respawn" class="respawn hidden"></div>
+      <div id="click-to-play" class="click-to-play hidden"><div>Click to play</div><small>WASD move · Mouse aim · Shift sprint · Space jump · R reload · B shop · 1/2 weapons · 3–0 gear</small></div>
+      <div id="shop" class="shop panel hidden"></div>
+    </div>
+
+    <!-- Spectator -->
+    <div id="spec-hud" class="role-hud hidden"><div class="spec-tag panel">👁 Spectating. The host can assign you a role. Drag/WASD to pan, wheel to zoom, Q/E rotate.</div></div>
+
+    <div id="scoreboard" class="scoreboard panel hidden"></div>
+    <div id="host-panel" class="host-panel panel hidden"></div>
+    <div id="pause-overlay" class="pause-overlay hidden"><div>⏸ PAUSED</div><small>Waiting for the host…</small></div>
+    <div id="round-summary" class="round-summary panel hidden"></div>
+  </section>
+
+  <!-- Results -->
+  <section id="results-screen" class="screen hidden"><div id="results" class="panel results"></div></section>
+
+  <div id="modal" class="modal hidden"><div class="modal-card panel"><button class="modal-close btn small ghost" id="modal-close">✕</button><div id="modal-body"></div></div></div>
+  <div id="toasts" class="toasts"></div>
+  <div id="conn-status" class="conn-status hidden">Reconnecting…</div>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>
